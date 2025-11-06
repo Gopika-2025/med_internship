@@ -1,22 +1,21 @@
 # app.py
 # -------------------------------------------------------------------
-# Streamlit App: Medical Report Assistant (with spaCy + Negex)
+# Streamlit App: Medical Report Assistant (Cloud-safe NLP)
 # - Extracts and analyzes text from PDF/DOCX/Image/TXT
-# - NLP (spaCy) + Negex for medical condition detection
-# - Rule-based triage scoring + PDF summary + optional model.pkl
+# - Rule-based entity extraction (regex + YAML rules)
+# - No spaCy / Negex / blis (fully deployable)
 # -------------------------------------------------------------------
 
-# 1️⃣ Imports
 import os, sys, pathlib, re, io
-from typing import List, Tuple, Dict, Any, Optional
-from datetime import datetime
+from typing import List, Tuple, Dict, Any
 import pickle
 import streamlit as st
+from datetime import datetime
 
-# ✅ Must be FIRST Streamlit command
-st.set_page_config(page_title="Medical Report Assistant (NLP)", layout="wide")
+# ✅ Must be first Streamlit command
+st.set_page_config(page_title="Medical Report Assistant", layout="wide")
 
-# 2️⃣ Dependencies
+# Dependencies
 import yaml
 from docx import Document
 from reportlab.lib.pagesizes import A4
@@ -26,62 +25,36 @@ from pypdf import PdfReader
 from PIL import Image
 import pytesseract
 
-# OCR fallback
+# Optional OCR fallback
 try:
     from pdf2image import convert_from_path
     _HAS_PDF2IMAGE = True
 except Exception:
     _HAS_PDF2IMAGE = False
 
-# 3️⃣ NLP Setup
-try:
-    import spacy
-    from spacy.language import Language
-    from negspacy.negation import Negex
-    import warnings
-
-    warnings.filterwarnings("ignore")
-
-    # Auto-download model if not present
-    try:
-        spacy.load("en_core_web_sm")
-    except OSError:
-        os.system("python -m spacy download en_core_web_sm")
-
-    _NLP = spacy.load("en_core_web_sm")
-
-    # Add Negex if available
-    if "negex" not in _NLP.pipe_names:
-        _NLP.add_pipe("negex")
-
-    _HAS_NLP = True
-    st.sidebar.success("✅ spaCy + Negex loaded")
-except Exception as e:
-    _HAS_NLP = False
-    _NLP = None
-    st.sidebar.warning(f"⚠️ NLP not loaded: {e}")
-
-# 4️⃣ Global Setup
+# Globals
 ROOT = pathlib.Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-_RULES: Optional[Dict[str, Any]] = None
-
-# 5️⃣ Optional ML Model
+# -----------------------------
+# Model (optional)
+# -----------------------------
 MODEL = None
 MODEL_PATH = ROOT / "model.pkl"
 if MODEL_PATH.exists():
     try:
         with open(MODEL_PATH, "rb") as f:
             MODEL = pickle.load(f)
-        st.sidebar.info("✅ Model loaded successfully")
+        st.sidebar.success("✅ Model loaded (model.pkl)")
     except Exception as e:
-        st.sidebar.warning(f"⚠️ Could not load model.pkl: {e}")
+        st.sidebar.warning(f"⚠️ Model load failed: {e}")
 else:
-    st.sidebar.info("ℹ️ No model.pkl found — skipping ML prediction")
+    st.sidebar.info("ℹ️ No model.pkl found — skipping prediction")
 
-# 6️⃣ Default Rule Base
+# -----------------------------
+# Default Rules
+# -----------------------------
 _DEFAULT_RULES = {
     "general_rules": {"red_flags": ["sepsis", "shock", "loss of consciousness", "acute abdomen", "chest pain"]},
     "diseases": [
@@ -104,12 +77,13 @@ _DEFAULT_RULES = {
     ],
 }
 
-# 7️⃣ Helper Functions
+# -----------------------------
+# Helper Functions
+# -----------------------------
 def load_rules() -> Dict[str, Any]:
-    rules_path = ROOT / "rules.yaml"
-    if rules_path.exists():
-        with open(rules_path, "r", encoding="utf-8") as f:
-            return yaml.safe_load(f)
+    path = ROOT / "rules.yaml"
+    if path.exists():
+        return yaml.safe_load(open(path, "r", encoding="utf-8"))
     return _DEFAULT_RULES
 
 
@@ -152,16 +126,16 @@ def convert_to_pdf(input_path: str) -> str:
 
 
 def extract_text_from_pdf(pdf_path: str) -> str:
-    embedded = []
+    texts = []
     try:
         reader = PdfReader(pdf_path)
         for page in reader.pages:
-            t = page.extract_text() or ""
-            if t.strip():
-                embedded.append(t.strip())
+            txt = page.extract_text() or ""
+            if txt.strip():
+                texts.append(txt.strip())
     except Exception:
         pass
-    text = "\n".join(embedded)
+    text = "\n".join(texts)
     if len(text) >= 200 or not _HAS_PDF2IMAGE:
         return text
     try:
@@ -172,15 +146,12 @@ def extract_text_from_pdf(pdf_path: str) -> str:
         return text
 
 
-def extract_entities(text: str) -> List[str]:
-    if not _HAS_NLP:
-        return []
-    doc = _NLP(text)
+def extract_entities_rulebased(text: str, rules: Dict[str, Any]) -> List[str]:
     entities = []
-    for ent in doc.ents:
-        neg = getattr(ent._, "negex", False)
-        if not neg:
-            entities.append(ent.text)
+    for dis in rules.get("diseases", []):
+        for kw in dis.get("keywords", []):
+            if re.search(r"\b" + re.escape(kw) + r"\b", text, re.IGNORECASE):
+                entities.append(kw)
     return list(set(entities))
 
 
@@ -223,7 +194,7 @@ def process_report(input_path: str, city: str, tier: str) -> Dict[str, Any]:
     rules = load_rules()
     pdf_path = convert_to_pdf(input_path)
     text = extract_text_from_pdf(pdf_path)
-    entities = extract_entities(text)
+    entities = extract_entities_rulebased(text, rules)
     dis = _match_condition(text, rules)
     band, score, red_flags, reasons = _severity_for(dis, text, rules)
     procedures = dis.get("procedures", []) if dis else []
@@ -245,9 +216,11 @@ def process_report(input_path: str, city: str, tier: str) -> Dict[str, Any]:
         "cost_range": (min_c, max_c),
     }
 
-# 8️⃣ Streamlit UI
-st.title("🩺 Medical Report Assistant — NLP Mode")
-st.caption("spaCy + Negex enabled version with OCR and PDF summary.")
+# -----------------------------
+# Streamlit UI
+# -----------------------------
+st.title("🩺 Medical Report Assistant — Cloud Safe")
+st.caption("Rule-based NLP (no spaCy/blis). 100% deployable on Streamlit Cloud.")
 
 with st.sidebar:
     st.header("⚙️ Settings")
