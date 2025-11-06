@@ -1,26 +1,13 @@
-# ---- Python temporary files ----
-__pycache__/
+# Ignore virtual environments
+venv/
+env/
+*/__pycache__/
 *.pyc
-*.pyo
-*.pyd
 
-# ---- Logs and caches ----
-*.log
-.cache/
-tmp/
-temp/
-*.tmp
-
-# ---- Reports or generated files ----
+# Ignore large or temporary files
+*.pkl
 *.pdf
-*.html
-*.csv
-*.xlsx
-*.json
-
-# ---- OS or Editor files ----
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
-"model.pkl" 
+*.png
+*.jpg
+*.jpeg
+*.zip
