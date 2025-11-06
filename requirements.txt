@@ -6,7 +6,7 @@ python-docx
 pillow
 pyyaml
 reportlab
-spacy==3.7.4
+spacy[cpu]==3.7.4
 negspacy==1.0.0
 pandas
 numpy
