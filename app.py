@@ -1,60 +1,28 @@
 # app.py
 # -------------------------------------------------------------------
-# Streamlit App: Medical Report Assistant (Cloud-safe NLP)
-# - Extracts and analyzes text from PDF/DOCX/Image/TXT
-# - Rule-based entity extraction (regex + YAML rules)
-# - No spaCy / Negex / blis (fully deployable)
+# Streamlit App: Medical Report Assistant (Pure-Python Cloud Version)
+# - Handles PDF/DOCX/TXT
+# - Extracts text with PyPDF or python-docx
+# - Rule-based triage (no OCR, no spaCy)
 # -------------------------------------------------------------------
 
-import os, sys, pathlib, re, io
-from typing import List, Tuple, Dict, Any
-import pickle
+import os, pathlib, re, yaml
+from typing import Dict, Any, List, Tuple
+from pypdf import PdfReader
+from docx import Document
 import streamlit as st
-from datetime import datetime
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import mm
 
-# ✅ Must be first Streamlit command
+# --- Streamlit config (must be first)
 st.set_page_config(page_title="Medical Report Assistant", layout="wide")
 
-# Dependencies
-import yaml
-from docx import Document
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-from reportlab.lib.units import mm
-from pypdf import PdfReader
-from PIL import Image
-import pytesseract
-
-# Optional OCR fallback
-try:
-    from pdf2image import convert_from_path
-    _HAS_PDF2IMAGE = True
-except Exception:
-    _HAS_PDF2IMAGE = False
-
-# Globals
 ROOT = pathlib.Path(__file__).resolve().parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
-# -----------------------------
-# Model (optional)
-# -----------------------------
-MODEL = None
-MODEL_PATH = ROOT / "model.pkl"
-if MODEL_PATH.exists():
-    try:
-        with open(MODEL_PATH, "rb") as f:
-            MODEL = pickle.load(f)
-        st.sidebar.success("✅ Model loaded (model.pkl)")
-    except Exception as e:
-        st.sidebar.warning(f"⚠️ Model load failed: {e}")
-else:
-    st.sidebar.info("ℹ️ No model.pkl found — skipping prediction")
-
-# -----------------------------
+# ---------------------------
 # Default Rules
-# -----------------------------
+# ---------------------------
 _DEFAULT_RULES = {
     "general_rules": {"red_flags": ["sepsis", "shock", "loss of consciousness", "acute abdomen", "chest pain"]},
     "diseases": [
@@ -77,9 +45,9 @@ _DEFAULT_RULES = {
     ],
 }
 
-# -----------------------------
-# Helper Functions
-# -----------------------------
+# ---------------------------
+# Helpers
+# ---------------------------
 def load_rules() -> Dict[str, Any]:
     path = ROOT / "rules.yaml"
     if path.exists():
@@ -87,63 +55,26 @@ def load_rules() -> Dict[str, Any]:
     return _DEFAULT_RULES
 
 
-def _text_to_pdf(text: str, out_path: str) -> str:
-    c = canvas.Canvas(out_path, pagesize=A4)
-    width, height = A4
-    y = height - 20 * mm
-    c.setFont("Helvetica", 11)
-    for line in text.splitlines():
-        if y < 20 * mm:
-            c.showPage()
-            y = height - 20 * mm
-        c.drawString(20 * mm, y, line[:120])
-        y -= 14
-    c.save()
-    return out_path
-
-
-def convert_to_pdf(input_path: str) -> str:
-    base, _ = os.path.splitext(input_path)
-    out_pdf = base + "__canonical.pdf"
-    ext = input_path.lower()
-    if ext.endswith(".pdf"):
-        with open(input_path, "rb") as fin, open(out_pdf, "wb") as fout:
-            fout.write(fin.read())
-        return out_pdf
-    if ext.endswith((".png", ".jpg", ".jpeg")):
-        with Image.open(input_path) as im:
-            if im.mode in ("RGBA", "P"):
-                im = im.convert("RGB")
-            im.save(out_pdf, "PDF", resolution=200.0)
-        return out_pdf
-    if ext.endswith(".docx"):
-        text = "\n".join([p.text for p in Document(input_path).paragraphs if p.text.strip()])
-        return _text_to_pdf(text, out_pdf)
-    if ext.endswith(".txt"):
-        text = open(input_path, "r", encoding="utf-8", errors="ignore").read()
-        return _text_to_pdf(text, out_pdf)
-    return out_pdf
-
-
-def extract_text_from_pdf(pdf_path: str) -> str:
-    texts = []
-    try:
-        reader = PdfReader(pdf_path)
-        for page in reader.pages:
-            txt = page.extract_text() or ""
-            if txt.strip():
-                texts.append(txt.strip())
-    except Exception:
-        pass
-    text = "\n".join(texts)
-    if len(text) >= 200 or not _HAS_PDF2IMAGE:
-        return text
-    try:
-        pages = convert_from_path(pdf_path, dpi=200)
-        ocr_texts = [pytesseract.image_to_string(img) for img in pages]
-        return text + "\n" + "\n".join(ocr_texts)
-    except Exception:
-        return text
+def extract_text(file_path: str) -> str:
+    """Extract text from PDF or DOCX"""
+    if file_path.lower().endswith(".pdf"):
+        text = []
+        try:
+            reader = PdfReader(file_path)
+            for page in reader.pages:
+                t = page.extract_text() or ""
+                if t.strip():
+                    text.append(t)
+        except Exception as e:
+            st.error(f"PDF reading failed: {e}")
+        return "\n".join(text)
+    elif file_path.lower().endswith(".docx"):
+        doc = Document(file_path)
+        return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+    elif file_path.lower().endswith(".txt"):
+        return open(file_path, "r", encoding="utf-8", errors="ignore").read()
+    else:
+        return ""
 
 
 def extract_entities_rulebased(text: str, rules: Dict[str, Any]) -> List[str]:
@@ -164,63 +95,43 @@ def _match_condition(text: str, rules: Dict[str, Any]) -> Dict[str, Any]:
     return {}
 
 
-def _severity_for(dis: Dict[str, Any], text: str, rules: Dict[str, Any]) -> Tuple[str, float, List[str], List[str]]:
-    reasons, red_flags = [], []
+def _severity_for(dis: Dict[str, Any], text: str, rules: Dict[str, Any]) -> Tuple[str, float, List[str]]:
+    red_flags = []
+    for rf in rules["general_rules"]["red_flags"]:
+        if re.search(rf, text, re.IGNORECASE):
+            red_flags.append(rf)
     if dis:
-        for kw in dis.get("keywords", []):
-            if re.search(r"\b" + re.escape(kw) + r"\b", text, re.IGNORECASE):
-                reasons.append(f"Matched keyword: {kw}")
-        for rf in rules["general_rules"]["red_flags"]:
-            if re.search(rf, text, re.IGNORECASE):
-                red_flags.append(rf)
         for rf in dis.get("severity_rules", {}).get("red_flags", []):
             if re.search(rf, text, re.IGNORECASE):
                 red_flags.append(rf)
     if red_flags:
-        return "red", 0.9, red_flags, reasons + ["Red flags present"]
+        return "red", 0.9, red_flags
     elif dis:
-        return "amber", 0.6, red_flags, reasons
+        return "amber", 0.6, []
     else:
-        return "green", 0.3, [], ["No significant findings"]
+        return "green", 0.3, []
 
 
-def _cost_for(dis: Dict[str, Any], tier: str) -> Tuple[int, int]:
-    if not dis:
-        return (0, 0)
-    return tuple(dis.get("cost_band", {}).get(f"tier_{tier}", [0, 0]))
+def _text_to_pdf(text: str, out_path: str) -> str:
+    c = canvas.Canvas(out_path, pagesize=A4)
+    width, height = A4
+    y = height - 20 * mm
+    c.setFont("Helvetica", 11)
+    for line in text.splitlines():
+        if y < 20 * mm:
+            c.showPage()
+            y = height - 20 * mm
+        c.drawString(20 * mm, y, line[:120])
+        y -= 14
+    c.save()
+    return out_path
 
 
-def process_report(input_path: str, city: str, tier: str) -> Dict[str, Any]:
-    rules = load_rules()
-    pdf_path = convert_to_pdf(input_path)
-    text = extract_text_from_pdf(pdf_path)
-    entities = extract_entities_rulebased(text, rules)
-    dis = _match_condition(text, rules)
-    band, score, red_flags, reasons = _severity_for(dis, text, rules)
-    procedures = dis.get("procedures", []) if dis else []
-    recovery = dis.get("recovery_recos", []) if dis else []
-    min_c, max_c = _cost_for(dis, tier)
-    return {
-        "pdf_path": pdf_path,
-        "city": city,
-        "tier": tier,
-        "raw_text": text,
-        "entities": entities,
-        "disease": dis.get("name", "Unknown"),
-        "severity_band": band,
-        "severity_score": score,
-        "red_flags": red_flags,
-        "reasons": reasons,
-        "procedures": procedures,
-        "recovery": recovery,
-        "cost_range": (min_c, max_c),
-    }
-
-# -----------------------------
+# ---------------------------
 # Streamlit UI
-# -----------------------------
-st.title("🩺 Medical Report Assistant — Cloud Safe")
-st.caption("Rule-based NLP (no spaCy/blis). 100% deployable on Streamlit Cloud.")
+# ---------------------------
+st.title("🩺 Medical Report Assistant — Pure Python Cloud Version")
+st.caption("Works 100% on Streamlit Cloud (no system binaries).")
 
 with st.sidebar:
     st.header("⚙️ Settings")
@@ -228,38 +139,32 @@ with st.sidebar:
     tier = st.selectbox("Hospital Tier", ["1", "2", "3"], index=1)
     out_name = st.text_input("Summary PDF name", "summary.pdf")
 
-uploaded = st.file_uploader("📂 Upload Report", type=["pdf", "docx", "png", "jpg", "jpeg", "txt"])
+uploaded = st.file_uploader("📂 Upload report", type=["pdf", "docx", "txt"])
 
 if uploaded:
-    st.success(f"✅ Loaded: {uploaded.name}")
-    tmp_in = f"./_tmp_{uploaded.name}"
-    with open(tmp_in, "wb") as f:
+    tmp_path = f"./_tmp_{uploaded.name}"
+    with open(tmp_path, "wb") as f:
         f.write(uploaded.getbuffer())
 
-    if st.button("🔍 Analyze Report"):
-        with st.spinner("Processing..."):
-            result = process_report(tmp_in, city, tier)
+    if st.button("🔍 Analyze"):
+        rules = load_rules()
+        text = extract_text(tmp_path)
+        dis = _match_condition(text, rules)
+        band, score, red_flags = _severity_for(dis, text, rules)
+        entities = extract_entities_rulebased(text, rules)
+        min_c, max_c = (0, 0)
+        if dis:
+            min_c, max_c = tuple(dis.get("cost_band", {}).get(f"tier_{tier}", [0, 0]))
 
-        st.subheader("🧾 Summary")
-        st.write(f"**Detected Condition:** {result['disease']}")
-        st.write(f"**Severity:** {result['severity_band']} (score {result['severity_score']:.2f})")
-        st.write(f"**Entities:** {', '.join(result['entities']) or '—'}")
-        st.write(f"**Red Flags:** {', '.join(result['red_flags']) or 'None'}")
-        st.write(f"**Procedures:** {', '.join(result['procedures']) or '—'}")
-        st.write(f"**Recovery:** {', '.join(result['recovery']) or '—'}")
-        st.write(f"**Estimated Cost (₹):** {result['cost_range'][0]} — {result['cost_range'][1]}")
+        st.subheader("📊 Results")
+        st.write(f"**Detected Disease:** {dis.get('name', 'Unknown')}")
+        st.write(f"**Severity:** {band} (score {score:.2f})")
+        st.write(f"**Entities Found:** {', '.join(entities) or '—'}")
+        st.write(f"**Red Flags:** {', '.join(red_flags) or 'None'}")
+        st.write(f"**Cost Estimate (₹):** {min_c} - {max_c}")
 
-        if MODEL:
-            try:
-                X = [[len(result["raw_text"]) % 10, len(result["entities"])]]
-                pred = MODEL.predict(X)
-                st.info(f"🤖 Model Prediction: {pred[0]}")
-            except Exception as e:
-                st.warning(f"Model prediction failed: {e}")
-
-        pdf_path = _text_to_pdf(result["raw_text"][:1000], out_name)
-        with open(pdf_path, "rb") as f:
+        out_pdf = _text_to_pdf(text[:1500], out_name)
+        with open(out_pdf, "rb") as f:
             st.download_button("⬇️ Download Summary", f, file_name=out_name, mime="application/pdf")
-
 else:
     st.info("📤 Upload a report to begin.")
