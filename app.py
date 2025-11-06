@@ -1,21 +1,22 @@
 # app.py
 # -------------------------------------------------------------------
-# Streamlit App: Offline Medical Report Assistant (Cloud-safe)
-# - Converts input (PDF/DOCX/Image/TXT) to canonical PDF
-# - Extracts text using pypdf or Tesseract OCR
-# - Rule-based triage: disease detection, severity scoring
-# - Summary PDF + cost estimation + optional ML model
+# Streamlit App: Medical Report Assistant (with spaCy + Negex)
+# - Extracts and analyzes text from PDF/DOCX/Image/TXT
+# - NLP (spaCy) + Negex for medical condition detection
+# - Rule-based triage scoring + PDF summary + optional model.pkl
 # -------------------------------------------------------------------
 
-import os, sys, pathlib, io, re
+# 1️⃣ Imports
+import os, sys, pathlib, re, io
 from typing import List, Tuple, Dict, Any, Optional
 from datetime import datetime
 import pickle
 import streamlit as st
 
-# ✅ Must be the FIRST Streamlit command
-st.set_page_config(page_title="Medical Report Assistant", layout="wide")
+# ✅ Must be FIRST Streamlit command
+st.set_page_config(page_title="Medical Report Assistant (NLP)", layout="wide")
 
+# 2️⃣ Dependencies
 import yaml
 from docx import Document
 from reportlab.lib.pagesizes import A4
@@ -25,50 +26,64 @@ from pypdf import PdfReader
 from PIL import Image
 import pytesseract
 
-# Optional OCR fallback
+# OCR fallback
 try:
     from pdf2image import convert_from_path
     _HAS_PDF2IMAGE = True
 except Exception:
     _HAS_PDF2IMAGE = False
 
-# ---------------------------
-# Globals
-# ---------------------------
+# 3️⃣ NLP Setup
+try:
+    import spacy
+    from spacy.language import Language
+    from negspacy.negation import Negex
+    import warnings
+
+    warnings.filterwarnings("ignore")
+
+    # Auto-download model if not present
+    try:
+        spacy.load("en_core_web_sm")
+    except OSError:
+        os.system("python -m spacy download en_core_web_sm")
+
+    _NLP = spacy.load("en_core_web_sm")
+
+    # Add Negex if available
+    if "negex" not in _NLP.pipe_names:
+        _NLP.add_pipe("negex")
+
+    _HAS_NLP = True
+    st.sidebar.success("✅ spaCy + Negex loaded")
+except Exception as e:
+    _HAS_NLP = False
+    _NLP = None
+    st.sidebar.warning(f"⚠️ NLP not loaded: {e}")
+
+# 4️⃣ Global Setup
 ROOT = pathlib.Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 _RULES: Optional[Dict[str, Any]] = None
 
-# ---------------------------
-# Load optional model.pkl
-# ---------------------------
+# 5️⃣ Optional ML Model
 MODEL = None
 MODEL_PATH = ROOT / "model.pkl"
 if MODEL_PATH.exists():
     try:
         with open(MODEL_PATH, "rb") as f:
             MODEL = pickle.load(f)
-        st.sidebar.success("✅ Model loaded (model.pkl)")
+        st.sidebar.info("✅ Model loaded successfully")
     except Exception as e:
         st.sidebar.warning(f"⚠️ Could not load model.pkl: {e}")
 else:
-    st.sidebar.info("ℹ️ No model file found — ML prediction skipped.")
+    st.sidebar.info("ℹ️ No model.pkl found — skipping ML prediction")
 
-# ---------------------------
-# Default rules
-# ---------------------------
+# 6️⃣ Default Rule Base
 _DEFAULT_RULES = {
-    "general_rules": {
-        "red_flags": [
-            "sepsis",
-            "shock",
-            "loss of consciousness",
-            "acute abdomen",
-            "chest pain",
-        ]
-    },
+    "general_rules": {"red_flags": ["sepsis", "shock", "loss of consciousness", "acute abdomen", "chest pain"]},
     "diseases": [
         {
             "name": "Appendicitis",
@@ -89,9 +104,7 @@ _DEFAULT_RULES = {
     ],
 }
 
-# ---------------------------
-# Helper functions
-# ---------------------------
+# 7️⃣ Helper Functions
 def load_rules() -> Dict[str, Any]:
     rules_path = ROOT / "rules.yaml"
     if rules_path.exists():
@@ -159,6 +172,18 @@ def extract_text_from_pdf(pdf_path: str) -> str:
         return text
 
 
+def extract_entities(text: str) -> List[str]:
+    if not _HAS_NLP:
+        return []
+    doc = _NLP(text)
+    entities = []
+    for ent in doc.ents:
+        neg = getattr(ent._, "negex", False)
+        if not neg:
+            entities.append(ent.text)
+    return list(set(entities))
+
+
 def _match_condition(text: str, rules: Dict[str, Any]) -> Dict[str, Any]:
     low = text.lower()
     for dis in rules.get("diseases", []):
@@ -198,6 +223,7 @@ def process_report(input_path: str, city: str, tier: str) -> Dict[str, Any]:
     rules = load_rules()
     pdf_path = convert_to_pdf(input_path)
     text = extract_text_from_pdf(pdf_path)
+    entities = extract_entities(text)
     dis = _match_condition(text, rules)
     band, score, red_flags, reasons = _severity_for(dis, text, rules)
     procedures = dis.get("procedures", []) if dis else []
@@ -208,6 +234,7 @@ def process_report(input_path: str, city: str, tier: str) -> Dict[str, Any]:
         "city": city,
         "tier": tier,
         "raw_text": text,
+        "entities": entities,
         "disease": dis.get("name", "Unknown"),
         "severity_band": band,
         "severity_score": score,
@@ -218,16 +245,14 @@ def process_report(input_path: str, city: str, tier: str) -> Dict[str, Any]:
         "cost_range": (min_c, max_c),
     }
 
-# ---------------------------
-# Streamlit UI
-# ---------------------------
-st.title("🩺 Medical Report Assistant — Offline Mode (Cloud-safe)")
-st.caption("Uses OCR + rule-based analysis. No external NLP or heavy models required.")
+# 8️⃣ Streamlit UI
+st.title("🩺 Medical Report Assistant — NLP Mode")
+st.caption("spaCy + Negex enabled version with OCR and PDF summary.")
 
 with st.sidebar:
     st.header("⚙️ Settings")
     city = st.text_input("City", "Chennai")
-    tier = st.selectbox("Hospital tier", ["1", "2", "3"], index=1)
+    tier = st.selectbox("Hospital Tier", ["1", "2", "3"], index=1)
     out_name = st.text_input("Summary PDF name", "summary.pdf")
 
 uploaded = st.file_uploader("📂 Upload Report", type=["pdf", "docx", "png", "jpg", "jpeg", "txt"])
@@ -245,15 +270,15 @@ if uploaded:
         st.subheader("🧾 Summary")
         st.write(f"**Detected Condition:** {result['disease']}")
         st.write(f"**Severity:** {result['severity_band']} (score {result['severity_score']:.2f})")
+        st.write(f"**Entities:** {', '.join(result['entities']) or '—'}")
         st.write(f"**Red Flags:** {', '.join(result['red_flags']) or 'None'}")
-        st.write(f"**Reasons:** {', '.join(result['reasons']) or '—'}")
         st.write(f"**Procedures:** {', '.join(result['procedures']) or '—'}")
         st.write(f"**Recovery:** {', '.join(result['recovery']) or '—'}")
         st.write(f"**Estimated Cost (₹):** {result['cost_range'][0]} — {result['cost_range'][1]}")
 
         if MODEL:
             try:
-                X = [[len(result["raw_text"]) % 10, len(result["red_flags"])]]
+                X = [[len(result["raw_text"]) % 10, len(result["entities"])]]
                 pred = MODEL.predict(X)
                 st.info(f"🤖 Model Prediction: {pred[0]}")
             except Exception as e:
