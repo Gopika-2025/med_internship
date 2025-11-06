@@ -1,13 +1,21 @@
-# Ignore virtual environments
+# Virtual environments
 venv/
 env/
 */__pycache__/
 *.pyc
 
-# Ignore large or temporary files
+# Large and temporary files
 *.pkl
 *.pdf
+*.zip
 *.png
 *.jpg
 *.jpeg
-*.zip
+*.tmp
+
+# Streamlit cache
+.streamlit/
+
+# IDE files
+.vscode/
+.idea/

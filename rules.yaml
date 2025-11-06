@@ -226,3 +226,15 @@ diseases:
       tier_1: [15000, 60000]
       tier_2: [10000, 45000]
       tier_3: [7000, 30000]
+
+---
+
+## 💾 **3. Enable Git LFS**
+
+In Command Prompt:
+```bash
+cd D:\med_internship
+git lfs install
+git lfs track "*.pkl"
+git add .gitattributes
+git commit -m "Enable Git LFS for model files"
