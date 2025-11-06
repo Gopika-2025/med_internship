@@ -1,240 +1,212 @@
-# rules.yaml
-# Compatible with the current pipeline:
-# - general_rules.red_flags (list of regex/words)
-# - diseases[].name
-# - diseases[].keywords (simple word/phrase matches)
-# - diseases[].severity_rules.red_flags (extra triggers)
-# - diseases[].procedures (plain strings)
-# - diseases[].recovery_recos (plain strings)
-# - diseases[].cost_band.tier_1/2/3 (INR [min,max])
-
 general_rules:
   red_flags:
-    - "sepsis"
-    - "septic shock"
-    - "hypotension"
-    - "loss of consciousness"
-    - "altered sensorium"
-    - "acute abdomen"
-    - "profuse bleeding"
-    - "chest pain"
-    - "shortness of breath"
-    - "stroke"
-    - "severe dehydration"
-    - "uncontrolled fever"
-    - "intractable vomiting"
-    - "fracture with deformity"
-    - "neuro deficit"
-    - "severe head injury"
-    - "GI perforation"
-    - "peritonitis"
+    - sepsis
+    - shock
+    - loss of consciousness
+    - acute abdomen
+    - chest pain
+    - uncontrolled bleeding
+    - respiratory distress
+    - unresponsiveness
+    - cardiac arrest
 
 diseases:
-  - name: "Appendicitis"
-    keywords: ["appendix", "appendicitis", "RLQ pain", "right lower quadrant pain", "McBurney"]
+  - name: Appendicitis
+    keywords:
+      - appendix
+      - appendicitis
+      - RLQ pain
+      - right lower quadrant
+      - rebound tenderness
     severity_rules:
-      red_flags: ["perforated", "abscess", "peritonitis", "generalized guarding"]
+      red_flags:
+        - perforated
+        - abscess
+        - peritonitis
     procedures:
-      - "Laparoscopic appendectomy"
-      - "Open appendectomy (if indicated)"
+      - Laparoscopic appendectomy
+      - Open appendectomy
     recovery_recos:
-      - "Nil per oral until surgical advice; IV fluids as per clinician"
-      - "Early ambulation post-op per advice"
-      - "Avoid heavy lifting for 2–3 weeks"
-    cost_band:
-      tier_1: [60000, 90000]
-      tier_2: [40000, 70000]
-      tier_3: [30000, 50000]
+      - Rest for 2 weeks
+      - Avoid heavy lifting
+      - Maintain light diet
+      - Monitor fever and pain
 
-  - name: "Gallstones / Cholelithiasis"
-    keywords: ["gallstones", "cholelithiasis", "biliary colic", "gallbladder"]
+  - name: Gallstones
+    keywords:
+      - gallbladder
+      - cholelithiasis
+      - biliary colic
+      - GB stone
+      - gallstone
+      - cholecystitis
     severity_rules:
-      red_flags: ["cholangitis", "bile duct obstruction", "pancreatitis", "empyema"]
+      red_flags:
+        - cholangitis
+        - bile duct obstruction
+        - pancreatitis
     procedures:
-      - "Laparoscopic cholecystectomy"
-      - "ERCP (if CBD stones, per specialist)"
+      - Laparoscopic cholecystectomy
+      - ERCP if bile duct stone
     recovery_recos:
-      - "Low-fat diet"
-      - "Gradual return to activity in ~2 weeks"
-    cost_band:
-      tier_1: [70000, 110000]
-      tier_2: [50000, 85000]
-      tier_3: [35000, 65000]
+      - Low-fat diet
+      - Return to work in 10–14 days
+      - Avoid fried food
 
-  - name: "Inguinal Hernia"
-    keywords: ["inguinal hernia", "groin bulge", "reducible swelling groin"]
+  - name: Pneumonia
+    keywords:
+      - pneumonia
+      - lung infection
+      - chest infection
+      - productive cough
+      - fever with chills
     severity_rules:
-      red_flags: ["strangulation", "irreducible hernia", "obstruction"]
+      red_flags:
+        - hypoxia
+        - respiratory failure
+        - sepsis
     procedures:
-      - "Laparoscopic hernioplasty (TAPP/TEP)"
-      - "Open mesh hernioplasty (Lichtenstein)"
+      - Antibiotic therapy
+      - Chest physiotherapy
     recovery_recos:
-      - "Avoid heavy lifting for 4–6 weeks"
-      - "Use abdominal support as advised"
-    cost_band:
-      tier_1: [80000, 140000]
-      tier_2: [60000, 100000]
-      tier_3: [45000, 80000]
+      - Complete antibiotics course
+      - Steam inhalation
+      - Hydration and rest
 
-  - name: "Ventral/Incisional Hernia"
-    keywords: ["ventral hernia", "incisional hernia", "abdominal wall hernia"]
+  - name: Dengue Fever
+    keywords:
+      - dengue
+      - thrombocytopenia
+      - mosquito bite
+      - high fever
+      - retro-orbital pain
     severity_rules:
-      red_flags: ["strangulation", "skin necrosis", "obstruction"]
+      red_flags:
+        - bleeding gums
+        - black stool
+        - severe dehydration
     procedures:
-      - "Laparoscopic mesh repair"
-      - "Open onlay/sublay mesh repair (as indicated)"
+      - Fluid management
+      - Platelet monitoring
     recovery_recos:
-      - "Weight control; avoid strain"
-      - "Abdominal binder as advised"
-    cost_band:
-      tier_1: [120000, 220000]
-      tier_2: [90000, 170000]
-      tier_3: [70000, 140000]
+      - Stay hydrated
+      - Avoid NSAIDs
+      - Bed rest for 5–7 days
 
-  - name: "Knee Osteoarthritis"
-    keywords: ["knee osteoarthritis", "tricompartmental oa", "degenerative knee", "kellgren", "gonarthrosis"]
+  - name: Diabetes Mellitus
+    keywords:
+      - diabetes
+      - hyperglycemia
+      - high sugar
+      - insulin
+      - diabetic
     severity_rules:
-      red_flags: ["severe deformity", "night pain unrelieved", "failed conservative >6 months"]
+      red_flags:
+        - diabetic ketoacidosis
+        - hypoglycemia
+        - coma
     procedures:
-      - "Intra-articular injections / physiotherapy (conservative)"
-      - "Unicompartmental knee replacement (selected)"
-      - "Total knee replacement (advanced OA)"
+      - Blood glucose monitoring
+      - Insulin therapy
     recovery_recos:
-      - "Quadriceps strengthening, weight management"
-      - "Assistive devices as needed"
-    cost_band:
-      tier_1: [180000, 350000]
-      tier_2: [120000, 250000]
-      tier_3: [90000, 180000]
+      - Regular exercise
+      - Balanced diet
+      - Avoid refined sugars
 
-  - name: "Kidney Stones / Ureteric Colic"
-    keywords: ["renal calculus", "kidney stone", "ureteric colic", "nephrolithiasis"]
+  - name: Hypertension
+    keywords:
+      - hypertension
+      - high blood pressure
+      - elevated BP
+      - hypertensive
     severity_rules:
-      red_flags: ["anuria", "urosepsis", "intractable pain", "obstructed infected system"]
+      red_flags:
+        - hypertensive crisis
+        - stroke
+        - heart failure
     procedures:
-      - "URS + Laser lithotripsy (size/location dependent)"
-      - "ESWL (selected cases)"
-      - "PCNL (for larger renal stones)"
+      - Antihypertensive medication
+      - ECG and kidney check
     recovery_recos:
-      - "Hydration; strain urine if advised"
-      - "Dietary modification based on stone type"
-    cost_band:
-      tier_1: [60000, 140000]
-      tier_2: [45000, 110000]
-      tier_3: [35000, 90000]
+      - Salt restriction
+      - Regular BP monitoring
+      - Stress management
 
-  - name: "Sinusitis (Acute/Chronic)"
-    keywords: ["sinusitis", "maxillary sinusitis", "frontal sinusitis", "nasal polyps"]
+  - name: COVID-19
+    keywords:
+      - covid
+      - coronavirus
+      - sars-cov-2
+      - loss of smell
+      - fever and cough
     severity_rules:
-      red_flags: ["orbital cellulitis", "intracranial spread", "meningitis"]
+      red_flags:
+        - respiratory distress
+        - oxygen saturation below 94
+        - pneumonia
     procedures:
-      - "Medical therapy (antibiotics, nasal steroids, saline irrigation)"
-      - "FESS — Functional endoscopic sinus surgery (chronic/refractory)"
+      - Isolation and testing
+      - Antiviral therapy
     recovery_recos:
-      - "Steam inhalation, saline rinses"
-      - "Allergen avoidance where possible"
-    cost_band:
-      tier_1: [3000, 15000]     # medical
-      tier_2: [2000, 10000]
-      tier_3: [1500, 8000]
+      - Home isolation for 7–10 days
+      - Maintain hydration
+      - Steam inhalation
 
-  - name: "Cataract"
-    keywords: ["cataract", "lens opacity", "phacoemulsification", "blurred vision elderly"]
+  - name: Migraine
+    keywords:
+      - migraine
+      - headache
+      - throbbing pain
+      - aura
+      - photophobia
     severity_rules:
-      red_flags: ["rapid vision loss", "lens-induced glaucoma"]
+      red_flags:
+        - sudden severe headache
+        - neurological deficit
     procedures:
-      - "Phacoemulsification with IOL implantation"
+      - Pain management
+      - Neurological evaluation
     recovery_recos:
-      - "Post-op drops as advised; protect eye"
-      - "Avoid rubbing/strenuous activity briefly"
-    cost_band:
-      tier_1: [25000, 60000]
-      tier_2: [18000, 45000]
-      tier_3: [12000, 30000]
+      - Avoid triggers
+      - Stay hydrated
+      - Maintain sleep schedule
 
-  - name: "Coronary Artery Disease / Suspected Angina"
-    keywords: ["angina", "coronary artery disease", "cad", "ischemia", "mi history", "stemi", "nstemi", "treadmill positive"]
+  - name: Asthma
+    keywords:
+      - asthma
+      - wheezing
+      - shortness of breath
+      - bronchospasm
+      - coughing fits
     severity_rules:
-      red_flags: ["ongoing chest pain", "ecg changes", "elevated troponin", "hemodynamic instability"]
+      red_flags:
+        - severe breathlessness
+        - silent chest
+        - unresponsive to inhaler
     procedures:
-      - "Medical optimization (cardiology)"
-      - "Coronary angiography ± PCI (as indicated)"
-      - "CABG in multi-vessel disease (as indicated)"
+      - Bronchodilator therapy
+      - Oxygen support
     recovery_recos:
-      - "Risk-factor control (lipids, BP, diabetes), cardiac rehab"
-      - "Lifestyle: diet, exercise, smoking cessation"
-    cost_band:
-      tier_1: [120000, 250000]   # diagnostic + PCI range varies widely
-      tier_2: [90000, 200000]
-      tier_3: [70000, 160000]
+      - Avoid dust and allergens
+      - Keep inhaler handy
+      - Regular follow-up
 
-  - name: "Cesarean Section (Obstetric)"
-    keywords: ["c section", "cesarean", "cesarean section", "lscs"]
+  - name: Kidney Stone
+    keywords:
+      - kidney stone
+      - renal calculus
+      - flank pain
+      - hematuria
+      - stone
     severity_rules:
-      red_flags: ["placenta previa", "fetal distress", "obstructed labour", "preeclampsia severe"]
+      red_flags:
+        - urinary retention
+        - infection
+        - severe obstruction
     procedures:
-      - "Lower segment cesarean section (LSCS) — obstetrician-led"
+      - Lithotripsy
+      - Stent placement
     recovery_recos:
-      - "Post-op ambulation as advised, wound care, breastfeeding support"
-      - "Avoid heavy lifting for ~6 weeks"
-    cost_band:
-      tier_1: [70000, 140000]
-      tier_2: [50000, 110000]
-      tier_3: [35000, 80000]
-
-  - name: "Tonsillitis / Recurrent Tonsillitis"
-    keywords: ["tonsillitis", "recurrent sore throat", "tonsillar hypertrophy"]
-    severity_rules:
-      red_flags: ["peritonsillar abscess", "airway compromise"]
-    procedures:
-      - "Medical therapy (analgesics/antibiotics per clinician)"
-      - "Tonsillectomy in recurrent/severe cases"
-    recovery_recos:
-      - "Warm saline gargles, hydration"
-      - "Post-op soft diet if surgery done"
-    cost_band:
-      tier_1: [25000, 60000]
-      tier_2: [18000, 45000]
-      tier_3: [12000, 30000]
-
-  - name: "Simple Fracture (Closed, Limb)"
-    keywords: ["fracture", "closed fracture", "distal radius fracture", "tibia fracture", "fibula fracture"]
-    severity_rules:
-      red_flags: ["open fracture", "neurovascular deficit", "compartment syndrome"]
-    procedures:
-      - "Closed reduction & casting (selected)"
-      - "ORIF — Open reduction internal fixation (as indicated)"
-    recovery_recos:
-      - "Elevation/ice early; physiotherapy after immobilization"
-      - "Avoid weight bearing until cleared"
-    cost_band:
-      tier_1: [60000, 180000]
-      tier_2: [45000, 140000]
-      tier_3: [30000, 100000]
-
-  - name: "Hemorrhoids / Piles"
-    keywords: ["hemorrhoids", "piles", "anal cushions", "rectal bleeding bright red"]
-    severity_rules:
-      red_flags: ["profuse bleeding", "strangulated prolapse", "severe anemia"]
-    procedures:
-      - "Medical: fiber, topical therapy, banding"
-      - "Minimally invasive hemorrhoidopexy/laser (selected)"
-    recovery_recos:
-      - "High-fiber diet, fluids"
-      - "Sitz baths per advice"
-    cost_band:
-      tier_1: [15000, 60000]
-      tier_2: [10000, 45000]
-      tier_3: [7000, 30000]
-
----
-
-## 💾 **3. Enable Git LFS**
-
-In Command Prompt:
-```bash
-cd D:\med_internship
-git lfs install
-git lfs track "*.pkl"
-git add .gitattributes
-git commit -m "Enable Git LFS for model files"
+      - Drink 3L water/day
+      - Limit salt and oxalate
+      - Regular follow-up scan
