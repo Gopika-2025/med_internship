@@ -1,15 +1,16 @@
 # app.py
 # -------------------------------------------------------------------
-# Single-file Streamlit app: Offline Medical Report Assistant (Cloud-Compatible)
-# - Canonicalizes input (PDF/DOCX/Image/TXT) to PDF
-# - Text extraction via pypdf and pdfplumber
-# - OCR fallback via EasyOCR (no Poppler/Tesseract required)
-# - NLP: spaCy or scispaCy; Negation via Negex
-# - Rule engine: rules.yaml or defaults
-# - Output: severity band/score, summary PDF, and calendar links
+# Single-file Streamlit app: Offline Medical Report Assistant
+# - Converts input (PDF/DOCX/Image/TXT) to canonical PDF
+# - Extracts text (pypdf; else pdf2image + Tesseract OCR)
+# - NLP: scispaCy (if present) or spaCy en_core_web_sm; fallback EntityRuler
+# - Negation handling with Negex (if available)
+# - Rule-based condition detection, severity band/score + reasons
+# - Procedures, recovery suggestions, cost estimate by hospital tier
+# - Summary PDF export + appointment templates + ICS + Google Calendar link
 # -------------------------------------------------------------------
 
-import os, sys, pathlib, io, re, tempfile, json
+import os, sys, pathlib, io, re, tempfile
 from typing import List, Tuple, Dict, Any, Optional
 from datetime import datetime, date, time, timedelta
 from urllib.parse import quote
@@ -21,12 +22,13 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import mm
 
-# PDF text
+# PDF text + rasterize
 from pypdf import PdfReader
-import pdfplumber
-import easyocr
-import numpy as np
+from pdf2image import convert_from_path  # requires poppler
+
+# OCR (Tesseract)
 from PIL import Image
+import pytesseract
 
 # NLP
 import spacy
@@ -38,22 +40,37 @@ try:
 except Exception:
     _HAS_NEGEX = False
 
-# --- Path setup ---
+# --- Path setup (helps on Cloud and local) ---
 ROOT = pathlib.Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+# --- Optional local defaults (Cloud ignores) ---
 os.environ.setdefault("STREAMLIT_SERVER_ADDRESS", "127.0.0.1")
 os.environ.setdefault("STREAMLIT_SERVER_PORT", "8501")
 
+# ---------------------------
+# Globals (loaded once)
+# ---------------------------
 _NLP: Optional[Language] = None
 _RULES: Optional[Dict[str, Any]] = None
 
+# If Tesseract is not on PATH (Windows), set explicitly:
+# pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
 # ---------------------------
-# Default rules
+# Default rules (used if rules.yaml not present)
 # ---------------------------
 _DEFAULT_RULES = {
-    "general_rules": {"red_flags": ["sepsis", "shock", "loss of consciousness", "acute abdomen", "chest pain"]},
+    "general_rules": {
+        "red_flags": [
+            "sepsis",
+            "shock",
+            "loss of consciousness",
+            "acute abdomen",
+            "chest pain",
+        ]
+    },
     "diseases": [
         {
             "name": "Appendicitis",
@@ -87,54 +104,206 @@ _DEFAULT_RULES = {
 }
 
 # ---------------------------
-# Rules loading
+# Pipeline (in this file)
 # ---------------------------
-def _load_rules(default_rules: Dict[str, Any], uploaded_rules: Optional[bytes]) -> Dict[str, Any]:
-    if uploaded_rules:
-        try:
-            data = yaml.safe_load(uploaded_rules.decode("utf-8", errors="ignore"))
-            if isinstance(data, dict) and "diseases" in data:
-                return data
-        except Exception:
-            pass
-    rules_path = ROOT / "rules.yaml"
-    if rules_path.exists():
-        try:
+def ensure_models_loaded():
+    """
+    Loads rules and an NLP pipeline:
+      1) Try scispaCy 'en_ner_bc5cdr_md' (best for diseases)
+      2) Fallback to 'en_core_web_sm'
+      3) Final fallback: blank('en') + EntityRuler from rules keywords
+    Adds Negex if available.
+    """
+    global _NLP, _RULES
+
+    # Load rules first
+    if _RULES is None:
+        rules_path = ROOT / "rules.yaml"
+        if rules_path.exists():
             with open(rules_path, "r", encoding="utf-8") as f:
-                data = yaml.safe_load(f)
-                if isinstance(data, dict) and "diseases" in data:
-                    return data
-        except Exception:
-            pass
-    return default_rules
+                _RULES = yaml.safe_load(f)
+        else:
+            _RULES = _DEFAULT_RULES
 
-# ---------------------------
-# NLP loading
-# ---------------------------
-@st.cache_resource(show_spinner=False)
-def ensure_models_loaded(rules_blob: Optional[bytes]) -> Tuple[Language, Dict[str, Any]]:
-    rules = _load_rules(_DEFAULT_RULES, rules_blob)
-    try:
-        nlp = spacy.load("en_ner_bc5cdr_md")
-    except Exception:
+    if _NLP is None:
+        # 1) scispaCy
         try:
-            nlp = spacy.load("en_core_web_sm")
+            _NLP = spacy.load("en_ner_bc5cdr_md")
         except Exception:
-            nlp = spacy.blank("en")
-            _add_entity_ruler_from_rules(nlp, rules)
+            # 2) spaCy small
+            try:
+                _NLP = spacy.load("en_core_web_sm")
+            except Exception:
+                # 3) fallback: blank + EntityRuler from rules
+                _NLP = spacy.blank("en")
+                _add_entity_ruler_from_rules(_NLP, _RULES)
 
-    if _HAS_NEGEX and "negex" not in nlp.pipe_names:
-        try:
-            nlp.add_pipe("negex")
-        except Exception:
-            pass
+        # Negex for negation if present
+        if _HAS_NEGEX and "negex" not in _NLP.pipe_names:
+            try:
+                _NLP.add_pipe("negex")
+            except Exception:
+                pass
 
-    return nlp, rules
+
+def process_report(input_path: str, city: str, tier: str) -> Dict[str, Any]:
+    """
+    Convert → extract text → NLP → rules → severity → cost.
+    """
+    pdf_path = convert_to_pdf(input_path)
+    raw_text = extract_text_from_pdf(pdf_path)
+    findings = extract_positive_entities(raw_text)
+
+    dis = _match_condition(raw_text)
+    band, score, red_flags, reasons = _severity_for(dis, raw_text)
+
+    procedures = dis.get("procedures", []) if dis else []
+    recovery = dis.get("recovery_recos", []) if dis else []
+    min_c, max_c = _cost_for(dis, tier)
+
+    return {
+        "pdf_path": pdf_path,
+        "city": city,
+        "tier": tier,
+        "raw_text": raw_text,
+        "findings": findings,
+        "disease": dis.get("name", "Unknown"),
+        "severity_band": band,
+        "severity_score": float(score),
+        "red_flags": red_flags,
+        "severity_reasons": reasons,
+        "procedures": procedures,
+        "recovery": recovery,
+        "cost_range": (min_c, max_c),
+    }
+
+def generate_summary_pdf(result: Dict[str, Any]) -> bytes:
+    """
+    Render a printable PDF summary (bytes).
+    """
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    w, h = A4
+
+    def line(y, text, font="Helvetica", size=11):
+        c.setFont(font, size)
+        c.drawString(20 * mm, y, text)
+        return y - 7 * mm
+
+    y = h - 20 * mm
+    y = line(y, "Medical Report — Summary (Offline)", font="Helvetica-Bold", size=16)
+    y -= 5 * mm
+
+    y = line(y, f"Detected Condition: {result['disease']}")
+    y = line(y, f"Severity Band: {result['severity_band']} (score {result['severity_score']:.2f})")
+    y = line(y, f"City/Tier: {result['city']} / {result['tier']}")
+    if result['red_flags']:
+        y = line(y, "Red Flags: " + ", ".join(result['red_flags']))
+
+    y -= 3 * mm
+    y = line(y, "Key Findings:", font="Helvetica-Bold", size=12)
+    c.setFont("Helvetica", 11)
+    if result["findings"]:
+        for fnd in result["findings"][:40]:
+            y = line(y, f"• {fnd}")
+            if y < 30 * mm:
+                c.showPage(); y = h - 20 * mm; c.setFont("Helvetica", 11)
+    else:
+        y = line(y, "—")
+
+    y -= 3 * mm
+    y = line(y, "Possible Procedures:", font="Helvetica-Bold", size=12)
+    c.setFont("Helvetica", 11)
+    if result["procedures"]:
+        for p in result["procedures"]:
+            y = line(y, f"• {p}")
+            if y < 30 * mm:
+                c.showPage(); y = h - 20 * mm; c.setFont("Helvetica", 11)
+    else:
+        y = line(y, "—")
+
+    y -= 3 * mm
+    y = line(y, "Recovery Suggestions:", font="Helvetica-Bold", size=12)
+    c.setFont("Helvetica", 11)
+    if result["recovery"]:
+        for r in result["recovery"]:
+            y = line(y, f"• {r}")
+            if y < 30 * mm:
+                c.showPage(); y = h - 20 * mm; c.setFont("Helvetica", 11)
+    else:
+        y = line(y, "—")
+
+    y -= 3 * mm
+    min_c, max_c = result["cost_range"]
+    y = line(y, f"Estimated Cost (₹): {min_c:,} — {max_c:,}", font="Helvetica-Bold")
+
+    y -= 4 * mm
+    y = line(y, "Disclaimer: Educational triage aid only — not a medical diagnosis. Consult a licensed clinician.", size=9)
+
+    c.showPage()
+    c.save()
+    buf.seek(0)
+    return buf.getvalue()
+
+def build_booking_templates(result: Dict[str, Any], city: str) -> Tuple[str, str]:
+    """
+    Offline email & WhatsApp appointment text (user copies to their app).
+    """
+    subj = f"Consultation request — {result['disease']} ({result['severity_band']})"
+    body = (
+        f"Hello,\n\n"
+        f"I'd like to request an appointment in {city} regarding: {result['disease']}.\n"
+        f"Severity: {result['severity_band']} (score {result['severity_score']:.2f}).\n"
+        f"Key findings: {', '.join(result['findings'][:6]) or '—'}.\n"
+        f"Estimated cost range (₹): {result['cost_range'][0]:,}–{result['cost_range'][1]:,}.\n\n"
+        f"Please share available slots this week and required documents.\n\nThanks."
+    )
+    return (f"Subject: {subj}\n\n{body}", body)
+
+def build_ics_custom(title: str, start_dt: datetime, end_dt: datetime, description: str = "", location: str = "") -> bytes:
+    fmt = "%Y%m%dT%H%M%S"
+    dt_start = start_dt.strftime(fmt)
+    dt_end = end_dt.strftime(fmt)
+    ics = (
+        "BEGIN:VCALENDAR\n"
+        "VERSION:2.0\n"
+        "PRODID:-//Offline Medical Assistant//EN\n"
+        "BEGIN:VEVENT\n"
+        f"UID:offline-{os.urandom(4).hex()}@assistant\n"
+        f"SUMMARY:{title}\n"
+        f"DTSTART:{dt_start}\n"
+        f"DTEND:{dt_end}\n"
+        f"LOCATION:{location}\n"
+        f"DESCRIPTION:{description}\n"
+        "END:VEVENT\n"
+        "END:VCALENDAR\n"
+    )
+    return ics.encode("utf-8")
+
+def build_google_calendar_link(title: str, start_dt: datetime, end_dt: datetime, details: str = "", location: str = "", tz: str = "Asia/Kolkata") -> str:
+    fmt = "%Y%m%dT%H%M%S"
+    ds = start_dt.strftime(fmt)
+    de = end_dt.strftime(fmt)
+    base = "https://calendar.google.com/calendar/render?action=TEMPLATE"
+    params = (
+        f"&text={quote(title)}"
+        f"&dates={ds}/{de}"
+        f"&details={quote(details)}"
+        f"&location={quote(location)}"
+        f"&ctz={quote(tz)}"
+    )
+    return base + params
 
 # ---------------------------
-# File conversions
+# Converters: to canonical PDF
 # ---------------------------
 def convert_to_pdf(input_path: str) -> str:
+    """
+    Always returns a PDF path created locally:
+      - PDF: copies to *_canonical.pdf
+      - Image: converts via Pillow to 1-page PDF
+      - DOCX/TXT: renders text into a simple PDF via reportlab
+    """
     base, _ = os.path.splitext(input_path)
     out_pdf = base + "__canonical.pdf"
 
@@ -144,14 +313,10 @@ def convert_to_pdf(input_path: str) -> str:
         return out_pdf
 
     if _is_image(input_path):
-        with Image.open(input_path) as im:
-            if im.mode in ("RGBA", "P"):
-                im = im.convert("RGB")
-            im.save(out_pdf, "PDF", resolution=200.0)
-        return out_pdf
+        return _image_to_pdf_pil(input_path, out_pdf)
 
     if _is_docx(input_path):
-        text = "\n".join(p.text for p in Document(input_path).paragraphs)
+        text = _docx_to_text(input_path)
         return _text_to_pdf(text, out_pdf)
 
     if _is_txt(input_path):
@@ -159,9 +324,26 @@ def convert_to_pdf(input_path: str) -> str:
             text = f.read()
         return _text_to_pdf(text, out_pdf)
 
+    # Fallback: raw copy to .pdf (not a real conversion)
     with open(input_path, "rb") as fin, open(out_pdf, "wb") as fout:
         fout.write(fin.read())
     return out_pdf
+
+def _image_to_pdf_pil(in_path: str, out_pdf: str) -> str:
+    with Image.open(in_path) as im:
+        if im.mode in ("RGBA", "P"):
+            im = im.convert("RGB")
+        im.save(out_pdf, "PDF", resolution=200.0)
+    return out_pdf
+
+def _docx_to_text(path: str) -> str:
+    doc = Document(path)
+    parts = []
+    for p in doc.paragraphs:
+        t = (p.text or "").strip()
+        if t:
+            parts.append(t)
+    return "\n".join(parts)
 
 def _text_to_pdf(text: str, out_path: str) -> str:
     c = canvas.Canvas(out_path, pagesize=A4)
@@ -180,42 +362,57 @@ def _text_to_pdf(text: str, out_path: str) -> str:
     return out_path
 
 # ---------------------------
-# Text extraction (Cloud safe)
+# Text extraction (PDF)
 # ---------------------------
-def extract_text_from_pdf(pdf_path: str, ocr_enabled: bool, ocr_dpi: int) -> str:
-    """Extract text: embedded first, OCR fallback via EasyOCR."""
+def extract_text_from_pdf(pdf_path: str) -> str:
+    """
+    Try embedded text using pypdf. If too little, rasterize pages with pdf2image
+    (Poppler) and OCR with Tesseract.
+    """
+    ensure_models_loaded()
+
+    # 1) Embedded text
     embedded = []
     try:
-        with pdfplumber.open(pdf_path) as pdf:
-            for page in pdf.pages:
-                t = page.extract_text() or ""
-                if t.strip():
-                    embedded.append(t)
+        reader = PdfReader(pdf_path)
+        for page in reader.pages:
+            t = page.extract_text() or ""
+            t = t.strip()
+            if t:
+                embedded.append(t)
     except Exception:
         embedded = []
 
     joined = "\n".join(embedded)
-    if len(joined) >= 200 or not ocr_enabled:
+    if len(joined) >= 200:
         return joined
 
-    st.warning("Using EasyOCR fallback (slower, but cloud compatible).")
-    reader = easyocr.Reader(['en'], gpu=False)
-    ocr_texts = []
+    # 2) OCR fallback
+    ocr_parts = []
     try:
-        with pdfplumber.open(pdf_path) as pdf:
-            for page in pdf.pages:
-                img = page.to_image(resolution=ocr_dpi).original
-                result = reader.readtext(np.array(img), detail=0)
-                ocr_texts.append(" ".join(result))
-    except Exception as e:
-        st.error(f"OCR error: {e}")
-    return joined + "\n" + "\n".join(ocr_texts)
+        images = convert_from_path(pdf_path, dpi=200)  # list[PIL.Image]
+        for img in images:
+            try:
+                txt = pytesseract.image_to_string(img)
+            except Exception:
+                txt = ""
+            if txt:
+                ocr_parts.append(txt)
+    except Exception:
+        pass
+
+    return "\n".join(ocr_parts)
 
 # ---------------------------
 # NLP helpers
 # ---------------------------
-def extract_positive_entities(text: str, nlp: Language) -> List[str]:
-    doc = nlp(text)
+def extract_positive_entities(text: str) -> List[str]:
+    """
+    Deduplicated text entities NOT negated (per Negex).
+    Works with scispaCy or spaCy small model; falls back to EntityRuler-only.
+    """
+    ensure_models_loaded()
+    doc = _NLP(text)  # type: ignore
     ents = []
     for ent in getattr(doc, "ents", []):
         neg = False
@@ -226,25 +423,33 @@ def extract_positive_entities(text: str, nlp: Language) -> List[str]:
             neg = False
         if not neg:
             ents.append(ent.text)
+
     uniq = []
     seen = set()
     for e in ents:
         norm = re.sub(r"\s+", " ", e.strip())
-        if norm.lower() not in seen:
-            seen.add(norm.lower())
+        key = norm.lower()
+        if norm and key not in seen:
+            seen.add(key)
             uniq.append(norm)
     return uniq
 
-def _match_condition(text: str, rules: Dict[str, Any]) -> Dict[str, Any]:
+def _match_condition(text: str) -> Dict[str, Any]:
     low = text.lower()
-    for dis in rules.get("diseases", []):
+    for dis in _RULES.get("diseases", []):  # type: ignore
         for kw in dis.get("keywords", []):
             if kw.lower() in low:
                 return dis
     return {}
 
-def _severity_for(dis: Dict[str, Any], text: str, rules: Dict[str, Any]) -> Tuple[str, float, List[str], List[str]]:
-    reasons, red_flags = [], []
+def _severity_for(dis: Dict[str, Any], text: str) -> Tuple[str, float, List[str], List[str]]:
+    """
+    Return (band, score, red_flags_found, reasons)
+    """
+    reasons: List[str] = []
+    red_flags: List[str] = []
+
+    # Keyword hits as weak proxy
     kw_hits = 0
     if dis:
         for kw in dis.get("keywords", []):
@@ -253,9 +458,12 @@ def _severity_for(dis: Dict[str, Any], text: str, rules: Dict[str, Any]) -> Tupl
         if kw_hits:
             reasons.append(f"Matched disease keywords: {kw_hits}")
 
-    for rf in rules.get("general_rules", {}).get("red_flags", []):
+    # General red flags
+    for rf in _RULES.get("general_rules", {}).get("red_flags", []):  # type: ignore
         if re.search(rf, text, re.IGNORECASE):
             red_flags.append(rf)
+
+    # Condition-specific red flags
     if dis:
         for rf in dis.get("severity_rules", {}).get("red_flags", []):
             if re.search(rf, text, re.IGNORECASE):
@@ -263,13 +471,25 @@ def _severity_for(dis: Dict[str, Any], text: str, rules: Dict[str, Any]) -> Tupl
 
     red_flags = sorted(set(red_flags))
     if red_flags:
-        reasons.append("Red flags: " + ", ".join(red_flags))
+        reasons.append("Red flags present: " + ", ".join(red_flags))
+
+    # Heuristic band/score
     if red_flags:
-        return "red", 0.9, red_flags, reasons
+        band = "red"
+        base = 0.75
+        score = min(1.0, base + 0.05 * len(red_flags))
     elif dis:
-        return "amber", 0.6, red_flags, reasons
+        band = "amber"
+        base = 0.5
+        score = min(0.8, base + 0.08 * kw_hits)
     else:
-        return "green", 0.3, red_flags, ["No matching condition or red flags"]
+        band = "green"
+        score = 0.3
+
+    if band == "green" and not reasons:
+        reasons.append("No matching condition or red flags detected")
+
+    return band, float(score), red_flags, reasons
 
 def _cost_for(dis: Dict[str, Any], tier: str) -> Tuple[int, int]:
     if not dis:
@@ -280,6 +500,21 @@ def _cost_for(dis: Dict[str, Any], tier: str) -> Tuple[int, int]:
         return int(rng[0]), int(rng[1])
     return (0, 0)
 
+# ---------------------------
+# File-type helpers
+# ---------------------------
+def _is_pdf(path: str) -> bool:
+    return path.lower().endswith(".pdf")
+
+def _is_image(path: str) -> bool:
+    return any(path.lower().endswith(ext) for ext in [".png", ".jpg", ".jpeg"])
+
+def _is_docx(path: str) -> bool:
+    return path.lower().endswith(".docx")
+
+def _is_txt(path: str) -> bool:
+    return path.lower().endswith(".txt")
+
 def _add_entity_ruler_from_rules(nlp: Language, rules: Dict[str, Any]) -> None:
     ruler = nlp.add_pipe("entity_ruler")
     patterns = []
@@ -287,22 +522,41 @@ def _add_entity_ruler_from_rules(nlp: Language, rules: Dict[str, Any]) -> None:
         for kw in dis.get("keywords", []):
             if kw:
                 patterns.append({"label": "CONDITION", "pattern": kw})
-    ruler.add_patterns(patterns)
+    if patterns:
+        ruler.add_patterns(patterns)
 
 # ---------------------------
 # UI helpers
 # ---------------------------
 def severity_badge(band: str) -> str:
     color = {"red": "#ff4d4f", "amber": "#faad14", "green": "#52c41a"}.get(band.lower(), "#888")
-    return f'<span style="background:{color};color:white;padding:4px 10px;border-radius:12px;font-weight:600;">{band.capitalize()}</span>'
+    label = band.capitalize()
+    return (
+        f'<span style="background:{color};color:white;padding:4px 10px;'
+        f'border-radius:12px;font-weight:600;">{label}</span>'
+    )
+
+def build_google_calendar_link(title: str, start_dt: datetime, end_dt: datetime, details: str = "", location: str = "", tz: str = "Asia/Kolkata") -> str:
+    fmt = "%Y%m%dT%H%M%S"
+    ds = start_dt.strftime(fmt)
+    de = end_dt.strftime(fmt)
+    base = "https://calendar.google.com/calendar/render?action=TEMPLATE"
+    params = (
+        f"&text={quote(title)}"
+        f"&dates={ds}/{de}"
+        f"&details={quote(details)}"
+        f"&location={quote(location)}"
+        f"&ctz={quote(tz)}"
+    )
+    return base + params
 
 # -------------------------------------------------------------------
 # Streamlit UI
 # -------------------------------------------------------------------
-st.set_page_config(page_title="Medical Report Assistant (Cloud-Compatible)", layout="wide")
-st.title("🩺 Medical Report Assistant — Cloud-Compatible Version")
+st.set_page_config(page_title="Medical Report Assistant (Single-file)", layout="wide")
+st.title("🩺 Medical Report Assistant — Single-file (Cloud-safe)")
 
-st.caption("Local NLP + OCR (no external API). Educational triage — not medical advice.")
+st.caption("No external APIs. Uses local OCR (Tesseract), NLP, and rules. Educational triage & planning — not a diagnosis.")
 
 with st.sidebar:
     st.header("⚙️ Settings")
@@ -310,59 +564,138 @@ with st.sidebar:
     tier = st.selectbox("Hospital tier", ["1", "2", "3"], index=1)
     out_name = st.text_input("Summary PDF name", value="summary.pdf")
     st.markdown("---")
-    ocr_enabled = st.checkbox("Enable OCR fallback", value=True)
-    ocr_dpi = st.slider("OCR DPI", min_value=100, max_value=400, step=20, value=200)
-    uploaded_rules = st.file_uploader("Upload rules.yaml (optional)", type=["yaml", "yml"])
-    st.markdown("---")
-    st.write("Upload a report (PDF, DOCX, Image, or TXT), click **Analyze**, and download the results.")
+    st.write("**How to use**:\n1) Upload a medical report (PDF/DOCX/Image/TXT)\n2) Click **Analyze**\n3) Download the summary or book calendar")
 
-# Initialize models
+# Initialize models/rules with friendly error
 try:
-    with st.spinner("Initializing NLP and rules…"):
-        _NLP, _RULES = ensure_models_loaded(uploaded_rules.read() if uploaded_rules else None)
+    with st.spinner("Initializing models and rules…"):
+        ensure_models_loaded()
 except Exception as e:
-    st.error("Startup error. Please check your dependencies.")
+    st.error("Startup error — please check your requirements/apt packages. See details below.")
     st.exception(e)
     st.stop()
 
-uploaded = st.file_uploader("Upload medical report", type=["pdf", "docx", "png", "jpg", "jpeg", "txt"])
-if uploaded:
+# File uploader
+uploaded = st.file_uploader(
+    "Upload medical report (PDF/DOCX/Image/TXT)",
+    type=["pdf", "docx", "png", "jpg", "jpeg", "txt"],
+    accept_multiple_files=False,
+)
+
+if uploaded is not None:
     st.success(f"Loaded: {uploaded.name}")
     tmp_in = os.path.join(".", f"_tmp_{uploaded.name}")
     with open(tmp_in, "wb") as f:
         f.write(uploaded.getbuffer())
 
     if st.button("🔍 Analyze Report", type="primary"):
-        with st.spinner("Processing report…"):
-            result = {}
-            try:
-                pdf_path = convert_to_pdf(tmp_in)
-                raw_text = extract_text_from_pdf(pdf_path, ocr_enabled, ocr_dpi)
-                dis = _match_condition(raw_text, _RULES)
-                band, score, red_flags, reasons = _severity_for(dis, raw_text, _RULES)
-                result = {
-                    "city": city, "tier": tier, "disease": dis.get("name", "Unknown"),
-                    "severity_band": band, "severity_score": score, "red_flags": red_flags,
-                    "severity_reasons": reasons, "procedures": dis.get("procedures", []),
-                    "recovery": dis.get("recovery_recos", []), "cost_range": _cost_for(dis, tier),
-                    "findings": extract_positive_entities(raw_text, _NLP),
-                }
-            except Exception as e:
-                st.error("Processing error")
-                st.exception(e)
-                st.stop()
+        with st.spinner("Processing (Convert → OCR → NLP → Rules)…"):
+            result = process_report(tmp_in, city=city, tier=tier)
 
-        st.subheader("🧾 Results")
-        st.markdown(severity_badge(result["severity_band"]), unsafe_allow_html=True)
-        st.write("**Condition:**", result["disease"])
-        st.write("**Score:**", result["severity_score"])
-        st.write("**Red Flags:**", ", ".join(result["red_flags"]) or "None")
-        st.write("**Key Findings:**")
-        st.write("\n".join([f"• {f}" for f in (result["findings"] or ["—"])]))
-        st.write("**Procedures:**", ", ".join(result["procedures"]) or "—")
-        st.write("**Recovery:**", ", ".join(result["recovery"]) or "—")
-        min_c, max_c = result["cost_range"]
-        st.metric("Estimated Cost (₹)", f"{min_c:,} – {max_c:,}")
+        left, right = st.columns([0.60, 0.40])
+
+        with left:
+            st.subheader("🧾 Result Summary")
+            st.markdown("**Severity:**")
+            st.markdown(severity_badge(result["severity_band"]), unsafe_allow_html=True)
+            st.markdown(f"Score: **{result['severity_score']:.2f}**")
+            if result.get("severity_reasons"):
+                st.markdown("**Why this severity?**")
+                st.write("\n".join(f"• {r}" for r in result["severity_reasons"]))
+
+            st.markdown(f"**Detected Condition:** {result['disease']}")
+            st.markdown("**Red Flags:** " + (", ".join(result["red_flags"]) if result["red_flags"] else "None"))
+
+            st.markdown("**Key Findings:**")
+            st.write("\n".join([f"• {x}" for x in (result["findings"] or ["—"])]))
+
+            st.markdown("**Possible Procedures:**")
+            st.write("\n".join([f"• {p}" for p in (result["procedures"] or ["—"])]))
+
+            st.markdown("**Recovery Suggestions:**")
+            st.write("\n".join([f"• {r}" for r in (result["recovery"] or ["—"])]))
+
+        with right:
+            st.subheader("💰 Estimated Cost (₹)")
+            min_c, max_c = result["cost_range"]
+            st.metric("Tier", f"Tier {tier}")
+            st.metric("Estimated range", f"₹{min_c:,} — ₹{max_c:,}")
+            st.caption("*Edit cost bands in rules.yaml or defaults in this file*")
+
+            st.markdown("---")
+            st.subheader("📅 Appointment Templates")
+            email_txt, wa_txt = build_booking_templates(result, city=city)
+            st.markdown("**Email text:**")
+            st.code(email_txt, language="text")
+            st.markdown("**WhatsApp text:**")
+            st.code(wa_txt, language="text")
+
+        # Calendar section
+        st.markdown("---")
+        st.subheader("🗓️ Calendar — Create Appointment")
+        colA, colB, colC, colD = st.columns(4)
+        with colA:
+            ev_date = st.date_input("Date", value=date.today() + timedelta(days=1))
+        with colB:
+            ev_time = st.time_input("Start time", value=time(hour=10, minute=0))
+        with colC:
+            duration_min = st.selectbox("Duration (mins)", [15, 30, 45, 60], index=1)
+        with colD:
+            tz = st.text_input("Time zone", value="Asia/Kolkata")
+
+        title_default = f"Consultation — {result['disease']} ({result['severity_band']})"
+        ev_title = st.text_input("Title", value=title_default)
+        ev_location = st.text_input("Location/Hospital", value=city)
+        ev_notes = st.text_area(
+            "Notes (go into event description)",
+            value=(f"Severity: {result['severity_band']} (score {result['severity_score']:.2f})\n"
+                   f"Key findings: {', '.join(result['findings'][:6]) or '—'}\n"
+                   f"Estimated cost range (₹): {min_c:,}–{max_c:,}"),
+            height=120
+        )
+
+        start_dt = datetime.combine(ev_date, ev_time)
+        end_dt = start_dt + timedelta(minutes=duration_min)
+
+        ics_bytes = build_ics_custom(ev_title, start_dt, end_dt, ev_notes, ev_location)
+        ics_name = f"appointment_{start_dt.strftime('%Y%m%d_%H%M')}.ics"
+
+        c1, c2 = st.columns(2)
+        with c1:
+            st.download_button(
+                "📥 Download .ics (Calendar)",
+                data=ics_bytes,
+                file_name=ics_name,
+                mime="text/calendar",
+                use_container_width=True,
+            )
+        with c2:
+            gcal_url = build_google_calendar_link(
+                title=ev_title,
+                start_dt=start_dt,
+                end_dt=end_dt,
+                details=ev_notes,
+                location=ev_location,
+                tz=tz,
+            )
+            st.link_button("🗓️ Open in Google Calendar", gcal_url, use_container_width=True)
+
+        # Summary PDF
+        st.markdown("---")
+        st.subheader("📄 Downloadable Summary (PDF)")
+        pdf_bytes = generate_summary_pdf(result)
+        st.download_button(
+            label="⬇️ Download Summary PDF",
+            data=pdf_bytes,
+            file_name=out_name,
+            mime="application/pdf",
+            use_container_width=True,
+        )
+
+        st.info(
+            "This tool provides guideline-style triage and education. "
+            "It does **not** diagnose or prescribe. Please consult a licensed clinician."
+        )
 
 else:
-    st.info("📤 Upload a report to start analysis.")
+    st.warning("📤 Upload a report to begin (PDF, DOCX, PNG, JPG, or TXT).")
