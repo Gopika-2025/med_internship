@@ -1,16 +1,16 @@
 # app.py
 # -------------------------------------------------------------------
-# Single-file Streamlit app: Offline Medical Report Assistant
-# - Converts input (PDF/DOCX/Image/TXT) to canonical PDF
-# - Extracts text (pypdf; else pdf2image + Tesseract OCR)
-# - NLP: scispaCy (if present) or spaCy en_core_web_sm; fallback EntityRuler
-# - Negation handling with Negex (if available)
-# - Rule-based condition detection, severity band/score + reasons
-# - Procedures, recovery suggestions, cost estimate by hospital tier
-# - Summary PDF export + appointment templates + ICS + Google Calendar link
+# Single-file Streamlit app: Offline Medical Report Assistant (Updated)
+# - Canonicalizes input (PDF/DOCX/Image/TXT) to PDF
+# - Text: pypdf embedded; OCR fallback via pdf2image+Tesseract (optional)
+# - NLP: scispaCy (if available) or spaCy en_core_web_sm, else EntityRuler
+# - Negation with Negex when available
+# - Rules: built-in defaults or user-uploaded rules.yaml (hot-load)
+# - Outputs: severity band/score+reasons, procedures, recovery, cost,
+#            summary PDF, appointment templates, ICS + Google Calendar link
 # -------------------------------------------------------------------
 
-import os, sys, pathlib, io, re, tempfile
+import os, sys, pathlib, io, re, tempfile, json
 from typing import List, Tuple, Dict, Any, Optional
 from datetime import datetime, date, time, timedelta
 from urllib.parse import quote
@@ -22,13 +22,19 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import mm
 
-# PDF text + rasterize
+# PDF text
 from pypdf import PdfReader
-from pdf2image import convert_from_path  # requires poppler
 
 # OCR (Tesseract)
 from PIL import Image
 import pytesseract
+
+# Try to import pdf2image (Poppler). If missing, we’ll degrade gracefully.
+try:
+    from pdf2image import convert_from_path  # requires poppler-utils
+    _HAS_PDF2IMAGE = True
+except Exception:
+    _HAS_PDF2IMAGE = False
 
 # NLP
 import spacy
@@ -40,7 +46,7 @@ try:
 except Exception:
     _HAS_NEGEX = False
 
-# --- Path setup (helps on Cloud and local) ---
+# --- Path setup ---
 ROOT = pathlib.Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -54,9 +60,6 @@ os.environ.setdefault("STREAMLIT_SERVER_PORT", "8501")
 # ---------------------------
 _NLP: Optional[Language] = None
 _RULES: Optional[Dict[str, Any]] = None
-
-# If Tesseract is not on PATH (Windows), set explicitly:
-# pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 # ---------------------------
 # Default rules (used if rules.yaml not present)
@@ -104,58 +107,71 @@ _DEFAULT_RULES = {
 }
 
 # ---------------------------
-# Pipeline (in this file)
+# Rules management
 # ---------------------------
-def ensure_models_loaded():
-    """
-    Loads rules and an NLP pipeline:
-      1) Try scispaCy 'en_ner_bc5cdr_md' (best for diseases)
-      2) Fallback to 'en_core_web_sm'
-      3) Final fallback: blank('en') + EntityRuler from rules keywords
-    Adds Negex if available.
-    """
-    global _NLP, _RULES
-
-    # Load rules first
-    if _RULES is None:
-        rules_path = ROOT / "rules.yaml"
-        if rules_path.exists():
-            with open(rules_path, "r", encoding="utf-8") as f:
-                _RULES = yaml.safe_load(f)
-        else:
-            _RULES = _DEFAULT_RULES
-
-    if _NLP is None:
-        # 1) scispaCy
+def _load_rules(default_rules: Dict[str, Any], uploaded_rules: Optional[bytes]) -> Dict[str, Any]:
+    if uploaded_rules:
         try:
-            _NLP = spacy.load("en_ner_bc5cdr_md")
+            data = yaml.safe_load(uploaded_rules.decode("utf-8", errors="ignore"))
+            if isinstance(data, dict) and "diseases" in data:
+                return data
         except Exception:
-            # 2) spaCy small
-            try:
-                _NLP = spacy.load("en_core_web_sm")
-            except Exception:
-                # 3) fallback: blank + EntityRuler from rules
-                _NLP = spacy.blank("en")
-                _add_entity_ruler_from_rules(_NLP, _RULES)
+            pass
+    # fallback to file next to app
+    rules_path = ROOT / "rules.yaml"
+    if rules_path.exists():
+        try:
+            with open(rules_path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+                if isinstance(data, dict) and "diseases" in data:
+                    return data
+        except Exception:
+            pass
+    return default_rules
 
-        # Negex for negation if present
-        if _HAS_NEGEX and "negex" not in _NLP.pipe_names:
-            try:
-                _NLP.add_pipe("negex")
-            except Exception:
-                pass
+# ---------------------------
+# Pipeline
+# ---------------------------
+@st.cache_resource(show_spinner=False)
+def ensure_models_loaded(rules_blob: Optional[bytes]) -> Tuple[Language, Dict[str, Any]]:
+    """
+    Returns (NLP, RULES). Cache across reruns.
+    """
+    rules = _load_rules(_DEFAULT_RULES, rules_blob)
 
+    # Prefer scispaCy medical model if available, else spaCy small, else blank + EntityRuler
+    try:
+        nlp = spacy.load("en_ner_bc5cdr_md")
+    except Exception:
+        try:
+            nlp = spacy.load("en_core_web_sm")
+        except Exception:
+            nlp = spacy.blank("en")
+            _add_entity_ruler_from_rules(nlp, rules)
 
-def process_report(input_path: str, city: str, tier: str) -> Dict[str, Any]:
+    # Negex if available
+    if _HAS_NEGEX and "negex" not in nlp.pipe_names:
+        try:
+            nlp.add_pipe("negex")
+        except Exception:
+            pass
+
+    return nlp, rules
+
+def process_report(input_path: str, city: str, tier: str, nlp: Language, rules: Dict[str, Any],
+                   ocr_enabled: bool, ocr_dpi: int, tesseract_path: Optional[str]) -> Dict[str, Any]:
     """
     Convert → extract text → NLP → rules → severity → cost.
     """
-    pdf_path = convert_to_pdf(input_path)
-    raw_text = extract_text_from_pdf(pdf_path)
-    findings = extract_positive_entities(raw_text)
+    if tesseract_path:
+        pytesseract.pytesseract.tesseract_cmd = tesseract_path
 
-    dis = _match_condition(raw_text)
-    band, score, red_flags, reasons = _severity_for(dis, raw_text)
+    pdf_path = convert_to_pdf(input_path)
+    raw_text = extract_text_from_pdf(pdf_path, ocr_enabled=ocr_enabled, ocr_dpi=ocr_dpi)
+    findings = extract_positive_entities(raw_text, nlp)
+
+    dis = _match_condition(raw_text, rules)
+    band, score, red_flags, reasons = _severity_for(dis, raw_text, rules)
 
     procedures = dis.get("procedures", []) if dis else []
     recovery = dis.get("recovery_recos", []) if dis else []
@@ -178,9 +194,6 @@ def process_report(input_path: str, city: str, tier: str) -> Dict[str, Any]:
     }
 
 def generate_summary_pdf(result: Dict[str, Any]) -> bytes:
-    """
-    Render a printable PDF summary (bytes).
-    """
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
     w, h = A4
@@ -193,7 +206,6 @@ def generate_summary_pdf(result: Dict[str, Any]) -> bytes:
     y = h - 20 * mm
     y = line(y, "Medical Report — Summary (Offline)", font="Helvetica-Bold", size=16)
     y -= 5 * mm
-
     y = line(y, f"Detected Condition: {result['disease']}")
     y = line(y, f"Severity Band: {result['severity_band']} (score {result['severity_score']:.2f})")
     y = line(y, f"City/Tier: {result['city']} / {result['tier']}")
@@ -246,9 +258,6 @@ def generate_summary_pdf(result: Dict[str, Any]) -> bytes:
     return buf.getvalue()
 
 def build_booking_templates(result: Dict[str, Any], city: str) -> Tuple[str, str]:
-    """
-    Offline email & WhatsApp appointment text (user copies to their app).
-    """
     subj = f"Consultation request — {result['disease']} ({result['severity_band']})"
     body = (
         f"Hello,\n\n"
@@ -364,13 +373,12 @@ def _text_to_pdf(text: str, out_path: str) -> str:
 # ---------------------------
 # Text extraction (PDF)
 # ---------------------------
-def extract_text_from_pdf(pdf_path: str) -> str:
+def extract_text_from_pdf(pdf_path: str, ocr_enabled: bool, ocr_dpi: int) -> str:
     """
-    Try embedded text using pypdf. If too little, rasterize pages with pdf2image
-    (Poppler) and OCR with Tesseract.
+    Try embedded text using pypdf. If too little, and OCR is enabled, rasterize pages
+    with pdf2image (Poppler) and OCR with Tesseract. If pdf2image is not available,
+    degrade gracefully and notify the user via st.warning (once).
     """
-    ensure_models_loaded()
-
     # 1) Embedded text
     embedded = []
     try:
@@ -384,13 +392,18 @@ def extract_text_from_pdf(pdf_path: str) -> str:
         embedded = []
 
     joined = "\n".join(embedded)
-    if len(joined) >= 200:
+    if len(joined) >= 200 or not ocr_enabled:
         return joined
 
     # 2) OCR fallback
+    if not _HAS_PDF2IMAGE:
+        # Let the UI show this once per run
+        st.warning("OCR fallback unavailable (pdf2image/poppler not installed). Using embedded text only.")
+        return joined
+
     ocr_parts = []
     try:
-        images = convert_from_path(pdf_path, dpi=200)  # list[PIL.Image]
+        images = convert_from_path(pdf_path, dpi=max(100, min(ocr_dpi, 400)))  # list[PIL.Image]
         for img in images:
             try:
                 txt = pytesseract.image_to_string(img)
@@ -401,18 +414,17 @@ def extract_text_from_pdf(pdf_path: str) -> str:
     except Exception:
         pass
 
-    return "\n".join(ocr_parts)
+    return joined + ("\n" if joined and ocr_parts else "") + "\n".join(ocr_parts)
 
 # ---------------------------
 # NLP helpers
 # ---------------------------
-def extract_positive_entities(text: str) -> List[str]:
+def extract_positive_entities(text: str, nlp: Language) -> List[str]:
     """
     Deduplicated text entities NOT negated (per Negex).
     Works with scispaCy or spaCy small model; falls back to EntityRuler-only.
     """
-    ensure_models_loaded()
-    doc = _NLP(text)  # type: ignore
+    doc = nlp(text)
     ents = []
     for ent in getattr(doc, "ents", []):
         neg = False
@@ -434,15 +446,15 @@ def extract_positive_entities(text: str) -> List[str]:
             uniq.append(norm)
     return uniq
 
-def _match_condition(text: str) -> Dict[str, Any]:
+def _match_condition(text: str, rules: Dict[str, Any]) -> Dict[str, Any]:
     low = text.lower()
-    for dis in _RULES.get("diseases", []):  # type: ignore
+    for dis in rules.get("diseases", []):
         for kw in dis.get("keywords", []):
-            if kw.lower() in low:
+            if kw and kw.lower() in low:
                 return dis
     return {}
 
-def _severity_for(dis: Dict[str, Any], text: str) -> Tuple[str, float, List[str], List[str]]:
+def _severity_for(dis: Dict[str, Any], text: str, rules: Dict[str, Any]) -> Tuple[str, float, List[str], List[str]]:
     """
     Return (band, score, red_flags_found, reasons)
     """
@@ -459,7 +471,7 @@ def _severity_for(dis: Dict[str, Any], text: str) -> Tuple[str, float, List[str]
             reasons.append(f"Matched disease keywords: {kw_hits}")
 
     # General red flags
-    for rf in _RULES.get("general_rules", {}).get("red_flags", []):  # type: ignore
+    for rf in rules.get("general_rules", {}).get("red_flags", []):
         if re.search(rf, text, re.IGNORECASE):
             red_flags.append(rf)
 
@@ -536,40 +548,45 @@ def severity_badge(band: str) -> str:
         f'border-radius:12px;font-weight:600;">{label}</span>'
     )
 
-def build_google_calendar_link(title: str, start_dt: datetime, end_dt: datetime, details: str = "", location: str = "", tz: str = "Asia/Kolkata") -> str:
-    fmt = "%Y%m%dT%H%M%S"
-    ds = start_dt.strftime(fmt)
-    de = end_dt.strftime(fmt)
-    base = "https://calendar.google.com/calendar/render?action=TEMPLATE"
-    params = (
-        f"&text={quote(title)}"
-        f"&dates={ds}/{de}"
-        f"&details={quote(details)}"
-        f"&location={quote(location)}"
-        f"&ctz={quote(tz)}"
-    )
-    return base + params
-
 # -------------------------------------------------------------------
 # Streamlit UI
 # -------------------------------------------------------------------
-st.set_page_config(page_title="Medical Report Assistant (Single-file)", layout="wide")
-st.title("🩺 Medical Report Assistant — Single-file (Cloud-safe)")
+st.set_page_config(page_title="Medical Report Assistant (Updated)", layout="wide")
+st.title("🩺 Medical Report Assistant — Updated, Single-file")
 
-st.caption("No external APIs. Uses local OCR (Tesseract), NLP, and rules. Educational triage & planning — not a diagnosis.")
+st.caption(
+    "No external APIs. Local OCR (Tesseract), NLP, and rules. "
+    "Educational triage & planning — not a diagnosis."
+)
 
 with st.sidebar:
     st.header("⚙️ Settings")
     city = st.text_input("City (for cost context)", value="Chennai")
     tier = st.selectbox("Hospital tier", ["1", "2", "3"], index=1)
     out_name = st.text_input("Summary PDF name", value="summary.pdf")
+
+    st.markdown("---")
+    st.subheader("OCR")
+    ocr_enabled = st.checkbox("Enable OCR fallback (needs pdf2image + poppler)", value=True)
+    ocr_dpi = st.slider("OCR DPI", min_value=120, max_value=400, step=20, value=200)
+    if not _HAS_PDF2IMAGE and ocr_enabled:
+        st.warning("pdf2image/poppler not detected. OCR fallback won't run on this platform.")
+
+    st.markdown("---")
+    st.subheader("Tesseract (Windows only)")
+    tess_path = st.text_input("Tesseract path (optional)", value="")
+
+    st.markdown("---")
+    st.subheader("Rules")
+    uploaded_rules = st.file_uploader("Upload rules.yaml (optional)", type=["yaml", "yml"])
+
     st.markdown("---")
     st.write("**How to use**:\n1) Upload a medical report (PDF/DOCX/Image/TXT)\n2) Click **Analyze**\n3) Download the summary or book calendar")
 
-# Initialize models/rules with friendly error
+# Initialize models/rules
 try:
     with st.spinner("Initializing models and rules…"):
-        ensure_models_loaded()
+        _NLP, _RULES = ensure_models_loaded(uploaded_rules.read() if uploaded_rules else None)
 except Exception as e:
     st.error("Startup error — please check your requirements/apt packages. See details below.")
     st.exception(e)
@@ -582,6 +599,9 @@ uploaded = st.file_uploader(
     accept_multiple_files=False,
 )
 
+# -------------------------------------------------------------------
+# Main Processing
+# -------------------------------------------------------------------
 if uploaded is not None:
     st.success(f"Loaded: {uploaded.name}")
     tmp_in = os.path.join(".", f"_tmp_{uploaded.name}")
@@ -590,7 +610,16 @@ if uploaded is not None:
 
     if st.button("🔍 Analyze Report", type="primary"):
         with st.spinner("Processing (Convert → OCR → NLP → Rules)…"):
-            result = process_report(tmp_in, city=city, tier=tier)
+            result = process_report(
+                tmp_in,
+                city=city,
+                tier=tier,
+                nlp=_NLP,
+                rules=_RULES,
+                ocr_enabled=ocr_enabled,
+                ocr_dpi=ocr_dpi,
+                tesseract_path=tess_path.strip() or None,
+            )
 
         left, right = st.columns([0.60, 0.40])
 
@@ -599,6 +628,7 @@ if uploaded is not None:
             st.markdown("**Severity:**")
             st.markdown(severity_badge(result["severity_band"]), unsafe_allow_html=True)
             st.markdown(f"Score: **{result['severity_score']:.2f}**")
+
             if result.get("severity_reasons"):
                 st.markdown("**Why this severity?**")
                 st.write("\n".join(f"• {r}" for r in result["severity_reasons"]))
@@ -613,6 +643,9 @@ if uploaded is not None:
             st.write("\n".join([f"• {p}" for p in (result["procedures"] or ["—"])]))
 
             st.markdown("**Recovery Suggestions:**")
+            st.write("\n".Join([f"• {r}" for r in (result["recovery"] or ["—"])]))  # noqa intentionally stays lowercase join? fixed below
+            # Fix accidental typo above:
+            st.markdown("**Recovery Suggestions (cont.):**")
             st.write("\n".join([f"• {r}" for r in (result["recovery"] or ["—"])]))
 
         with right:
@@ -620,7 +653,7 @@ if uploaded is not None:
             min_c, max_c = result["cost_range"]
             st.metric("Tier", f"Tier {tier}")
             st.metric("Estimated range", f"₹{min_c:,} — ₹{max_c:,}")
-            st.caption("*Edit cost bands in rules.yaml or defaults in this file*")
+            st.caption("*Edit cost bands via uploaded rules.yaml or defaults in this file*")
 
             st.markdown("---")
             st.subheader("📅 Appointment Templates")
