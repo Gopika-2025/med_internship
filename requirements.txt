@@ -1,0 +1,10 @@
+streamlit
+pydantic>=2
+pyyaml
+paddleocr>=2.7
+spacy
+negspacy
+reportlab
+pymupdf
+img2pdf
+python-docx
