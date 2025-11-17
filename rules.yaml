@@ -11,11 +11,12 @@ general_rules:
     - cardiac arrest
 
 diseases:
+
   - name: Appendicitis
     keywords:
       - appendix
       - appendicitis
-      - RLQ pain
+      - rlq pain
       - right lower quadrant
       - rebound tenderness
     severity_rules:
@@ -24,20 +25,21 @@ diseases:
         - abscess
         - peritonitis
     procedures:
-      - Laparoscopic appendectomy
-      - Open appendectomy
+      - laparoscopic appendectomy
+      - open appendectomy
     recovery_recos:
-      - Rest for 2 weeks
-      - Avoid heavy lifting
-      - Maintain light diet
-      - Monitor fever and pain
+      - rest for 2 weeks
+      - avoid heavy lifting
+      - maintain light diet
+      - monitor fever and pain
+    cost_inr: [60000, 250000]
 
-  - name: Gallstones
+  - name: Cholecystitis / Gallstones
     keywords:
       - gallbladder
       - cholelithiasis
       - biliary colic
-      - GB stone
+      - gb stone
       - gallstone
       - cholecystitis
     severity_rules:
@@ -46,13 +48,160 @@ diseases:
         - bile duct obstruction
         - pancreatitis
     procedures:
-      - Laparoscopic cholecystectomy
-      - ERCP if bile duct stone
+      - laparoscopic cholecystectomy
+      - ercp if bile duct stone
     recovery_recos:
-      - Low-fat diet
-      - Return to work in 10–14 days
-      - Avoid fried food
+      - low-fat diet
+      - return to work in 10–14 days
+      - avoid fried food
+    cost_inr: [80000, 300000]
 
+  - name: Acute Pancreatitis
+    keywords:
+      - pancreatitis
+      - epigastric pain
+      - elevated lipase
+      - acute pancreas
+      - amylase high
+    severity_rules:
+      red_flags:
+        - necrotizing pancreas
+        - organ failure
+        - severe dehydration
+    procedures:
+      - iv fluids
+      - pain control
+      - icu monitoring if severe
+    recovery_recos:
+      - avoid alcohol
+      - low-fat meals
+      - hydration
+    cost_inr: [90000, 450000]
+
+  - name: Intestinal Obstruction
+    keywords:
+      - obstruction
+      - bowel blockage
+      - dilated loops
+      - air-fluid levels
+      - vomiting bile
+    severity_rules:
+      red_flags:
+        - strangulated hernia
+        - gangrenous bowel
+        - peritonitis
+    procedures:
+      - decompression
+      - emergency laparotomy
+    recovery_recos:
+      - gradual reintroduction of diet
+      - avoid constipation
+    cost_inr: [100000, 500000]
+
+  - name: Inguinal Hernia
+    keywords:
+      - inguinal hernia
+      - groin bulge
+      - hernioplasty
+      - mesh repair
+    severity_rules:
+      red_flags:
+        - strangulation
+        - irreducible painful hernia
+    procedures:
+      - laparoscopic tep/tapp repair
+      - open mesh repair
+    recovery_recos:
+      - light activity 2 weeks
+      - avoid heavy lifting 4–6 weeks
+    cost_inr: [60000, 200000]
+
+  - name: Femoral Hernia
+    keywords:
+      - femoral hernia
+      - groin swelling
+      - thigh bulge
+    severity_rules:
+      red_flags:
+        - strangulation
+        - obstruction
+    procedures:
+      - open repair
+      - laparoscopic repair
+    recovery_recos:
+      - avoid lifting
+      - early mobilisation
+    cost_inr: [70000, 220000]
+
+  - name: Umbilical Hernia
+    keywords:
+      - umbilical hernia
+      - paraumbilical hernia
+      - central bulge
+    severity_rules:
+      red_flags:
+        - strangulated hernia
+    procedures:
+      - open mesh repair
+    recovery_recos:
+      - avoid strain
+      - wound care
+    cost_inr: [50000, 180000]
+
+  - name: Peritonitis
+    keywords:
+      - peritonitis
+      - rebound guarding
+      - rigid abdomen
+      - acute abdomen
+    severity_rules:
+      red_flags:
+        - perforation
+        - sepsis
+        - multiorgan failure
+    procedures:
+      - emergency laparotomy
+      - antibiotics
+    recovery_recos:
+      - hydration
+      - nutrition support
+    cost_inr: [120000, 600000]
+
+  - name: GI Perforation
+    keywords:
+      - perforation
+      - air under diaphragm
+      - peritoneal signs
+      - free air
+    severity_rules:
+      red_flags:
+        - severe sepsis
+        - shock
+    procedures:
+      - emergency surgery
+    recovery_recos:
+      - bowel rest
+      - gradual diet
+    cost_inr: [150000, 700000]
+
+  - name: Acute Gastroenteritis (Severe)
+    keywords:
+      - gastroenteritis
+      - diarrhea
+      - vomiting
+      - dehydration
+    severity_rules:
+      red_flags:
+        - severe dehydration
+        - acidosis
+        - shock
+    procedures:
+      - iv fluids
+      - electrolyte correction
+    recovery_recos:
+      - hydration
+      - oral rehydration
+    cost_inr: [20000, 60000]
   - name: Pneumonia
     keywords:
       - pneumonia
@@ -66,71 +215,14 @@ diseases:
         - respiratory failure
         - sepsis
     procedures:
-      - Antibiotic therapy
-      - Chest physiotherapy
+      - antibiotic therapy
+      - chest physiotherapy
+      - oxygen support if needed
     recovery_recos:
-      - Complete antibiotics course
-      - Steam inhalation
-      - Hydration and rest
-
-  - name: Dengue Fever
-    keywords:
-      - dengue
-      - thrombocytopenia
-      - mosquito bite
-      - high fever
-      - retro-orbital pain
-    severity_rules:
-      red_flags:
-        - bleeding gums
-        - black stool
-        - severe dehydration
-    procedures:
-      - Fluid management
-      - Platelet monitoring
-    recovery_recos:
-      - Stay hydrated
-      - Avoid NSAIDs
-      - Bed rest for 5–7 days
-
-  - name: Diabetes Mellitus
-    keywords:
-      - diabetes
-      - hyperglycemia
-      - high sugar
-      - insulin
-      - diabetic
-    severity_rules:
-      red_flags:
-        - diabetic ketoacidosis
-        - hypoglycemia
-        - coma
-    procedures:
-      - Blood glucose monitoring
-      - Insulin therapy
-    recovery_recos:
-      - Regular exercise
-      - Balanced diet
-      - Avoid refined sugars
-
-  - name: Hypertension
-    keywords:
-      - hypertension
-      - high blood pressure
-      - elevated BP
-      - hypertensive
-    severity_rules:
-      red_flags:
-        - hypertensive crisis
-        - stroke
-        - heart failure
-    procedures:
-      - Antihypertensive medication
-      - ECG and kidney check
-    recovery_recos:
-      - Salt restriction
-      - Regular BP monitoring
-      - Stress management
+      - complete antibiotics course
+      - steam inhalation
+      - hydration and rest
+    cost_inr: [30000, 150000]
 
   - name: COVID-19
     keywords:
@@ -145,31 +237,14 @@ diseases:
         - oxygen saturation below 94
         - pneumonia
     procedures:
-      - Isolation and testing
-      - Antiviral therapy
+      - isolation and testing
+      - antiviral therapy
+      - oxygen support if required
     recovery_recos:
-      - Home isolation for 7–10 days
-      - Maintain hydration
-      - Steam inhalation
-
-  - name: Migraine
-    keywords:
-      - migraine
-      - headache
-      - throbbing pain
-      - aura
-      - photophobia
-    severity_rules:
-      red_flags:
-        - sudden severe headache
-        - neurological deficit
-    procedures:
-      - Pain management
-      - Neurological evaluation
-    recovery_recos:
-      - Avoid triggers
-      - Stay hydrated
-      - Maintain sleep schedule
+      - home isolation for 7–10 days
+      - maintain hydration
+      - steam inhalation
+    cost_inr: [20000, 200000]
 
   - name: Asthma
     keywords:
@@ -184,29 +259,794 @@ diseases:
         - silent chest
         - unresponsive to inhaler
     procedures:
-      - Bronchodilator therapy
-      - Oxygen support
+      - bronchodilator therapy
+      - oxygen support
     recovery_recos:
-      - Avoid dust and allergens
-      - Keep inhaler handy
-      - Regular follow-up
+      - avoid dust and allergens
+      - keep inhaler handy
+      - regular follow-up
+    cost_inr: [20000, 100000]
 
-  - name: Kidney Stone
+  - name: COPD Exacerbation
     keywords:
-      - kidney stone
-      - renal calculus
-      - flank pain
-      - hematuria
-      - stone
+      - copd
+      - emphysema
+      - chronic bronchitis
+      - wheeze
+      - breathlessness
     severity_rules:
       red_flags:
-        - urinary retention
-        - infection
-        - severe obstruction
+        - hypercapnia
+        - acute respiratory failure
     procedures:
-      - Lithotripsy
-      - Stent placement
+      - bronchodilators
+      - steroids
+      - oxygen / bipap
     recovery_recos:
-      - Drink 3L water/day
-      - Limit salt and oxalate
-      - Regular follow-up scan
+      - smoking cessation
+      - breathing exercises
+    cost_inr: [40000, 180000]
+
+  - name: Tuberculosis
+    keywords:
+      - tb
+      - tuberculosis
+      - night sweats
+      - chronic cough
+      - weight loss
+    severity_rules:
+      red_flags:
+        - hemoptysis
+        - miliary tb
+        - severe weight loss
+    procedures:
+      - anti-tb therapy
+      - isolation if needed
+    recovery_recos:
+      - full 6-month course
+      - nutrition support
+    cost_inr: [15000, 80000]
+
+  - name: Pleural Effusion
+    keywords:
+      - pleural effusion
+      - fluid in lung
+      - blunting
+      - thoracentesis
+    severity_rules:
+      red_flags:
+        - empyema
+        - severe breathlessness
+    procedures:
+      - fluid drainage
+      - antibiotics if infected
+    recovery_recos:
+      - avoid exertion
+      - follow-up xray
+    cost_inr: [30000, 120000]
+
+  - name: Pulmonary Embolism
+    keywords:
+      - pulmonary embolism
+      - pe
+      - dvt
+      - chest pain with breathlessness
+      - sudden dyspnea
+    severity_rules:
+      red_flags:
+        - shock
+        - severe hypoxia
+    procedures:
+      - anticoagulation
+      - thrombolysis if massive
+    recovery_recos:
+      - avoid long immobility
+      - regular follow-up
+    cost_inr: [70000, 350000]
+
+  - name: ARDS
+    keywords:
+      - ards
+      - respiratory failure
+      - hypoxia refractory
+    severity_rules:
+      red_flags:
+        - multiorgan failure
+        - severe sepsis
+    procedures:
+      - icu care
+      - ventilatory support
+    recovery_recos:
+      - long-term rehab
+    cost_inr: [150000, 900000]
+
+  - name: Influenza
+    keywords:
+      - influenza
+      - flu
+      - fever body ache
+      - viral infection
+    severity_rules:
+      red_flags:
+        - severe dehydration
+        - respiratory distress
+    procedures:
+      - antiviral therapy
+    recovery_recos:
+      - hydration
+      - rest 3–5 days
+    cost_inr: [10000, 50000]
+
+  - name: Dengue Fever
+    keywords:
+      - dengue
+      - thrombocytopenia
+      - mosquito bite
+      - high fever
+      - retro-orbital pain
+    severity_rules:
+      red_flags:
+        - bleeding gums
+        - black stool
+        - severe dehydration
+    procedures:
+      - fluid management
+      - platelet monitoring
+    recovery_recos:
+      - stay hydrated
+      - avoid nsaids
+      - bed rest 5–7 days
+    cost_inr: [20000, 120000]
+
+  - name: Typhoid Fever
+    keywords:
+      - typhoid
+      - salmonella
+      - step-ladder fever
+      - abdominal pain fever
+    severity_rules:
+      red_flags:
+        - intestinal perforation
+        - severe dehydration
+    procedures:
+      - antibiotics
+      - hydration
+    recovery_recos:
+      - light diet
+      - full antibiotic course
+    cost_inr: [15000, 80000]
+
+  - name: Malaria
+    keywords:
+      - malaria
+      - plasmodium
+      - chills rigor
+      - high grade fever
+    severity_rules:
+      red_flags:
+        - cerebral malaria
+        - severe anemia
+        - organ dysfunction
+    procedures:
+      - antimalarial therapy
+      - fluids
+    recovery_recos:
+      - rest
+      - hydration
+    cost_inr: [20000, 100000]
+
+  - name: Leptospirosis
+    keywords:
+      - leptospirosis
+      - rat urine
+      - conjunctival suffusion
+      - fever myalgia
+    severity_rules:
+      red_flags:
+        - hepatorenal failure
+        - pulmonary hemorrhage
+    procedures:
+      - antibiotics
+      - hydration
+    recovery_recos:
+      - electrolyte balance
+      - rest
+    cost_inr: [30000, 160000]
+
+  - name: Chikungunya
+    keywords:
+      - chikungunya
+      - joint pain fever
+      - mosquito borne
+    severity_rules:
+      red_flags:
+        - severe dehydration
+        - persistent joint swelling
+    procedures:
+      - fluids
+      - pain management
+    recovery_recos:
+      - rest
+      - hydration
+    cost_inr: [10000, 60000]
+
+  - name: H1N1 Swine Flu
+    keywords:
+      - h1n1
+      - swine flu
+      - severe flu
+    severity_rules:
+      red_flags:
+        - respiratory failure
+        - severe dehydration
+    procedures:
+      - antiviral therapy
+      - oxygen therapy
+    recovery_recos:
+      - rest
+      - hydration
+    cost_inr: [20000, 150000]
+
+  - name: Hypertension
+    keywords:
+      - hypertension
+      - high blood pressure
+      - elevated bp
+      - hypertensive
+    severity_rules:
+      red_flags:
+        - hypertensive crisis
+        - stroke
+        - heart failure
+    procedures:
+      - antihypertensive medication
+      - ecg and kidney check
+    recovery_recos:
+      - salt restriction
+      - regular bp monitoring
+      - stress management
+    cost_inr: [20000, 80000]
+
+  - name: Hypertensive Emergency
+    keywords:
+      - hypertensive emergency
+      - severe bp
+      - end organ damage
+      - crisis
+    severity_rules:
+      red_flags:
+        - encephalopathy
+        - pulmonary edema
+        - renal failure
+    procedures:
+      - iv antihypertensives
+      - icu monitoring
+    recovery_recos:
+      - bp control
+      - diet and lifestyle
+    cost_inr: [40000, 200000]
+
+  - name: Coronary Artery Disease
+    keywords:
+      - cad
+      - coronary artery disease
+      - angina
+      - exertional chest pain
+    severity_rules:
+      red_flags:
+        - unstable angina
+        - arrhythmia
+        - heart failure
+    procedures:
+      - ecg, echo
+      - angiography
+    recovery_recos:
+      - lifestyle modification
+      - medications
+    cost_inr: [60000, 300000]
+
+  - name: Myocardial Infarction
+    keywords:
+      - myocardial infarction
+      - mi
+      - stemi
+      - nstemi
+      - chest pressure
+    severity_rules:
+      red_flags:
+        - cardiac arrest
+        - shock
+        - acute pulmonary edema
+    procedures:
+      - emergency pci
+      - thrombolysis
+    recovery_recos:
+      - cardiac rehab
+      - medication adherence
+    cost_inr: [150000, 900000]
+
+  - name: Unstable Angina
+    keywords:
+      - unstable angina
+      - rest chest pain
+      - crescendo angina
+    severity_rules:
+      red_flags:
+        - acute coronary syndrome
+        - arrhythmia
+    procedures:
+      - angiography
+      - antiplatelet therapy
+    recovery_recos:
+      - avoid exertion
+      - medication compliance
+    cost_inr: [70000, 300000]
+
+  - name: Arrhythmia (General)
+    keywords:
+      - arrhythmia
+      - palpitation
+      - irregular heartbeat
+    severity_rules:
+      red_flags:
+        - syncope
+        - hemodynamic instability
+    procedures:
+      - ecg
+      - medication
+      - cardioversion if needed
+    recovery_recos:
+      - avoid stimulants
+      - regular monitoring
+    cost_inr: [30000, 180000]
+
+  - name: Atrial Fibrillation
+    keywords:
+      - af
+      - atrial fibrillation
+      - irregular pulse
+    severity_rules:
+      red_flags:
+        - stroke risk
+        - rapid ventricular response
+    procedures:
+      - rate control
+      - anticoagulants
+    recovery_recos:
+      - blood thinners
+      - monitoring
+    cost_inr: [40000, 200000]
+
+  - name: Heart Failure
+    keywords:
+      - heart failure
+      - leg swelling
+      - orthopnea
+      - pnd
+    severity_rules:
+      red_flags:
+        - pulmonary edema
+        - cardiogenic shock
+    procedures:
+      - diuretics
+      - ecg/echo
+    recovery_recos:
+      - salt restriction
+      - fluid balance
+    cost_inr: [60000, 300000]
+
+  - name: Pericarditis
+    keywords:
+      - pericarditis
+      - pericardial pain
+      - friction rub
+    severity_rules:
+      red_flags:
+        - tamponade
+        - severe effusion
+    procedures:
+      - anti-inflammatory therapy
+      - drainage if effusion
+    recovery_recos:
+      - rest
+      - medication adherence
+    cost_inr: [30000, 120000]
+
+  - name: Myocarditis
+    keywords:
+      - myocarditis
+      - viral heart inflammation
+      - elevated troponin
+    severity_rules:
+      red_flags:
+        - arrhythmia
+        - heart failure
+    procedures:
+      - supportive care
+      - monitoring
+    recovery_recos:
+      - light activity
+    cost_inr: [50000, 250000]
+
+  - name: Deep Vein Thrombosis
+    keywords:
+      - dvt
+      - deep vein thrombosis
+      - leg swelling
+      - calf pain
+    severity_rules:
+      red_flags:
+        - pulmonary embolism
+        - severe edema
+    procedures:
+      - anticoagulation
+    recovery_recos:
+      - avoid long sitting
+      - compression stockings
+    cost_inr: [30000, 120000]
+
+  - name: Peripheral Artery Disease
+    keywords:
+      - pad
+      - peripheral artery disease
+      - claudication
+    severity_rules:
+      red_flags:
+        - critical limb ischemia
+        - gangrene
+    procedures:
+      - vascular evaluation
+      - revascularization if severe
+    recovery_recos:
+      - walking therapy
+      - smoking cessation
+    cost_inr: [50000, 250000]
+
+  - name: Aortic Dissection
+    keywords:
+      - aortic dissection
+      - tearing chest pain
+      - sudden severe pain
+    severity_rules:
+      red_flags:
+        - rupture
+        - shock
+    procedures:
+      - emergency surgery
+      - icu care
+    recovery_recos:
+      - strict bp control
+    cost_inr: [300000, 1500000]
+
+  - name: Pericardial Effusion
+    keywords:
+      - pericardial effusion
+      - water bottle heart
+      - fluid around heart
+    severity_rules:
+      red_flags:
+        - tamponade
+    procedures:
+      - drainage
+    recovery_recos:
+      - follow-up echo
+    cost_inr: [50000, 180000]
+
+  - name: Chest Pain (Undifferentiated)
+    keywords:
+      - chest pain
+      - chest discomfort
+      - tightness
+    severity_rules:
+      red_flags:
+        - diaphoresis
+        - radiation to arm or jaw
+        - breathlessness
+        - hypotension
+    procedures:
+      - ecg
+      - cardiac enzymes
+    recovery_recos:
+      - avoid exertion
+    cost_inr: [20000, 90000]
+  - name: Stroke (CVA)
+    keywords:
+      - stroke
+      - cva
+      - hemiplegia
+      - facial droop
+      - slurred speech
+    severity_rules:
+      red_flags:
+        - loss of consciousness
+        - brain swelling
+        - hemorrhagic stroke
+    procedures:
+      - ct brain
+      - thrombolysis if eligible
+      - physiotherapy
+    recovery_recos:
+      - rehab therapy
+      - bp & sugar control
+    cost_inr: [120000, 600000]
+
+  - name: TIA (Transient Ischemic Attack)
+    keywords:
+      - tia
+      - transient weakness
+      - brief speech loss
+    severity_rules:
+      red_flags:
+        - recurrent episodes
+    procedures:
+      - antiplatelets
+      - carotid evaluation
+    recovery_recos:
+      - lifestyle modification
+    cost_inr: [30000, 120000]
+
+  - name: Seizure / Epilepsy
+    keywords:
+      - seizure
+      - convulsion
+      - epilepsy
+      - loss of awareness
+    severity_rules:
+      red_flags:
+        - status epilepticus
+        - prolonged unconsciousness
+    procedures:
+      - antiepileptic drugs
+      - eeg
+    recovery_recos:
+      - medication adherence
+      - avoid triggers
+    cost_inr: [30000, 150000]
+
+  - name: Status Epilepticus
+    keywords:
+      - status epilepticus
+      - continuous seizure
+    severity_rules:
+      red_flags:
+        - respiratory depression
+        - brain injury
+    procedures:
+      - emergency anticonvulsants
+      - icu care
+    recovery_recos:
+      - monitoring
+    cost_inr: [100000, 400000]
+
+  - name: Meningitis
+    keywords:
+      - meningitis
+      - neck stiffness
+      - photophobia
+      - fever severe headache
+    severity_rules:
+      red_flags:
+        - sepsis
+        - brain swelling
+    procedures:
+      - lumbar puncture
+      - antibiotics
+    recovery_recos:
+      - hydration
+      - rest
+    cost_inr: [80000, 350000]
+
+  - name: Encephalitis
+    keywords:
+      - encephalitis
+      - altered sensorium
+      - fever confusion
+    severity_rules:
+      red_flags:
+        - seizures
+        - coma
+    procedures:
+      - antivirals
+      - icu care
+    recovery_recos:
+      - rehab therapy
+    cost_inr: [120000, 500000]
+
+  - name: Brain Tumor (General)
+    keywords:
+      - brain tumor
+      - intracranial mass
+      - space occupying lesion
+    severity_rules:
+      red_flags:
+        - raised icp
+        - seizures
+        - neurological deficit
+    procedures:
+      - mri brain
+      - neurosurgery
+    recovery_recos:
+      - radiotherapy/chemo (if needed)
+      - rehab
+    cost_inr: [200000, 1500000]
+
+  - name: Migraine
+    keywords:
+      - migraine
+      - headache
+      - throbbing pain
+      - aura
+      - photophobia
+    severity_rules:
+      red_flags:
+        - sudden severe headache
+        - neurological deficit
+    procedures:
+      - pain management
+      - neurological evaluation
+    recovery_recos:
+      - avoid triggers
+      - stay hydrated
+      - maintain sleep schedule
+    cost_inr: [10000, 40000]
+
+  - name: Tension Headache
+    keywords:
+      - tension headache
+      - stress headache
+      - pressure headache
+    severity_rules:
+      red_flags:
+        - sudden onset severe pain
+    procedures:
+      - analgesics
+      - stress management
+    recovery_recos:
+      - hydration
+      - relaxation therapy
+    cost_inr: [5000, 20000]
+
+  - name: Cluster Headache
+    keywords:
+      - cluster headache
+      - severe unilateral pain
+      - red eye pain
+    severity_rules:
+      red_flags:
+        - autonomic symptoms
+    procedures:
+      - oxygen therapy
+      - triptans
+    recovery_recos:
+      - trigger avoidance
+    cost_inr: [15000, 60000]
+
+  - name: Vertigo (Peripheral)
+    keywords:
+      - vertigo
+      - dizziness
+      - imbalance
+      - bppv
+    severity_rules:
+      red_flags:
+        - persistent vomiting
+        - fainting
+    procedures:
+      - vestibular therapy
+      - epley maneuver
+    recovery_recos:
+      - slow movements
+    cost_inr: [10000, 40000]
+
+  - name: Bell's Palsy
+    keywords:
+      - bells palsy
+      - facial weakness
+      - facial droop peripheral
+    severity_rules:
+      red_flags:
+        - stroke-like symptoms
+    procedures:
+      - steroids
+      - physiotherapy
+    recovery_recos:
+      - facial exercises
+    cost_inr: [20000, 80000]
+
+  - name: Multiple Sclerosis
+    keywords:
+      - multiple sclerosis
+      - ms
+      - demyelination
+      - optic neuritis
+    severity_rules:
+      red_flags:
+        - acute flare
+        - vision loss
+    procedures:
+      - steroids
+      - immunotherapy
+    recovery_recos:
+      - physiotherapy
+    cost_inr: [200000, 1200000]
+
+  - name: Parkinson’s Disease
+    keywords:
+      - parkinson
+      - tremor
+      - rigidity
+      - bradykinesia
+    severity_rules:
+      red_flags:
+        - sudden worsening
+    procedures:
+      - dopaminergic therapy
+    recovery_recos:
+      - physiotherapy
+      - fall precautions
+    cost_inr: [30000, 150000]
+
+  - name: Peripheral Neuropathy
+    keywords:
+      - neuropathy
+      - tingling numbness
+      - burning feet
+    severity_rules:
+      red_flags:
+        - foot ulcers
+    procedures:
+      - nerve conduction study
+    recovery_recos:
+      - vitamin therapy
+      - sugar control
+    cost_inr: [15000, 70000]
+
+  - name: Carpal Tunnel Syndrome
+    keywords:
+      - carpal tunnel
+      - wrist nerve compression
+      - tingling hand
+    severity_rules:
+      red_flags:
+        - severe weakness
+    procedures:
+      - splinting
+      - surgery if severe
+    recovery_recos:
+      - ergonomic changes
+    cost_inr: [25000, 120000]
+
+  - name: Lumbar Disc Herniation
+    keywords:
+      - lumbar disc
+      - l4-l5
+      - l5-s1
+      - sciatica
+      - disc prolapse
+    severity_rules:
+      red_flags:
+        - bladder/bowel dysfunction
+        - saddle anesthesia
+        - severe weakness
+    procedures:
+      - physiotherapy
+      - microdiscectomy
+    recovery_recos:
+      - core strengthening
+      - avoid lifting
+    cost_inr: [80000, 300000]
+
+  - name: Cervical Spondylosis
+    keywords:
+      - cervical spondylosis
+      - neck pain
+      - nerve compression
+    severity_rules:
+      red_flags:
+        - progressive weakness
+    procedures:
+      - physiotherapy
+      - traction
+    recovery_recos:
+      - posture correction
+    cost_inr: [20000, 90000]
