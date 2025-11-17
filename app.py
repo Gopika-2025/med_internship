@@ -1,13 +1,14 @@
 # app.py
 # -------------------------------------------------------------------
-# Clinical Report Helper (Educational, India) — with Appointment Booking System
+# Clinical Report Helper (Educational, India) — YAML-driven version
+# - Loads rules (diseases, cities, hospitals, cost modifiers) from rules.yaml
 # - Upload (PDF/DOCX/Image) → instant tables (no button)
 # - Extract Name/Age/Sex/Problems
-# - Detect likely condition (rule-based, India pack)
-# - Show About, What to do, Recovery, Severity % (no red flags), Cost (INR by city)
-# - India-only city list & hospitals
-# - NEW: Hospital Appointment Booking System (directory, doctors, slot picker, conflict check)
-# - Persist bookings to bookings.csv (+ cancel), show "My Bookings"
+# - Detect likely condition (rule-based, YAML)
+# - Show About, What to do, Recovery, Severity % (uses YAML severity rules)
+# - City list & hospitals loaded from rules.yaml
+# - Hospital Appointment Booking System (directory, doctors, slot picker)
+# - Persist bookings to bookings.json (+ cancel), show "My Bookings"
 # - Full Report PDF + Booking Receipt PDF + .ics calendar
 # - Flexible SMTP email (attach PDFs + .ics)
 # IMPORTANT: Informational only. Not a medical device; Not medical advice.
@@ -23,7 +24,7 @@ import pdfplumber
 import docx2txt
 from PIL import Image
 
-# Optional OCR
+# Safe optional OCR import
 try:
     import pytesseract
     OCR_AVAILABLE = True
@@ -34,7 +35,16 @@ from fpdf import FPDF
 import smtplib, ssl
 from email.message import EmailMessage
 
-BOOKINGS_CSV = "bookings.csv"
+# YAML loading
+try:
+    import yaml
+    YAML_AVAILABLE = True
+except Exception:
+    yaml = None
+    YAML_AVAILABLE = False
+
+RULES_FILE = "rules.yaml"
+BOOKINGS_FILE = "bookings.json"
 
 # -----------------------------
 # Page & minimal styling
@@ -74,178 +84,29 @@ for k, v in defaults.items():
         st.session_state[k] = v
 
 # -----------------------------
-# India KB (cities, hospitals, conditions)
+# Load rules.yaml (diseases + cities + general_rules)
 # -----------------------------
-KB: Dict[str, Any] = {
-    "city_cost_modifiers": {
-        "mumbai": 1.25, "delhi": 1.2, "new delhi": 1.2, "gurgaon": 1.2, "noida": 1.15,
-        "bengaluru": 1.2, "bangalore": 1.2, "chennai": 1.15, "hyderabad": 1.15, "pune": 1.15,
-        "kolkata": 1.15, "ahmedabad": 1.1, "jaipur": 1.1, "kochi": 1.1, "trivandrum": 1.1,
-        "coimbatore": 1.05, "madurai": 1.05, "trichy": 1.05, "tiruchirappalli": 1.05, "karur": 1.0,
-        "surat": 1.05, "indore": 1.05, "bhopal": 1.05, "lucknow": 1.05, "kanpur": 1.05,
-        "chandigarh": 1.1, "ludhiana": 1.05, "amritsar": 1.05, "nagpur": 1.05, "vizag": 1.05,
-        "bhubaneswar": 1.05, "ranchi": 1.0, "patna": 1.0, "guwahati": 1.0, "mysuru": 1.0,
-        "vadodara": 1.05, "nashik": 1.05, "rajkot": 1.05, "vellore": 1.05, "salem": 1.0,
-        "default": 1.0
-    },
-    # Hospital directory now includes departments, doctors & contact email.
-    "hospitals": {
-        "mumbai": [
-            {"name":"Kokilaben Hospital", "email":"appointments@kokilaben.in",
-             "departments":{"Cardiology":["Dr. A Sharma","Dr. K Rao"], "General Surgery":["Dr. V Singh"]}},
-            {"name":"Nanavati Max", "email":"book@nanavatimax.in",
-             "departments":{"Cardiology":["Dr. M Iyer"], "Orthopaedics":["Dr. P Varma"]}},
-            {"name":"Jaslok Hospital", "email":"clinic@jaslokhospital.net",
-             "departments":{"Urology":["Dr. R Patil"], "ENT":["Dr. S Desai"]}},
-        ],
-        "delhi": [
-            {"name":"Max Saket", "email":"bookings@maxhealthcare.com",
-             "departments":{"Cardiology":["Dr. T Mehta"], "General Surgery":["Dr. H Arora"], "Urology":["Dr. P Gupta"]}},
-            {"name":"Fortis Escorts Okhla", "email":"appointments@fortishealthcare.com",
-             "departments":{"Cardiology":["Dr. V Khanna"], "Orthopaedics":["Dr. R Kapoor"]}},
-        ],
-        "chennai": [
-            {"name":"Apollo Greams Road", "email":"apollo.chennai@apollohospitals.com",
-             "departments":{"Cardiology":["Dr. R Krishnan"], "General Surgery":["Dr. S Balan"], "ENT":["Dr. N Kannan"]}},
-            {"name":"Fortis Malar", "email":"appointments.chennai@fortishealthcare.com",
-             "departments":{"Urology":["Dr. A Menon"], "Orthopaedics":["Dr. B Srinivasan"]}},
-            {"name":"MIOT International", "email":"book@miotinternational.com",
-             "departments":{"Spine/Neuro":["Dr. G Anand"], "General Surgery":["Dr. J Varadarajan"]}},
-        ],
-        "bengaluru": [
-            {"name":"Manipal Old Airport Road", "email":"appointments.blr@manipalhospitals.com",
-             "departments":{"Cardiology":["Dr. N Kumar"], "Spine/Neuro":["Dr. Y Shetty"]}},
-            {"name":"Aster CMI", "email":"bookings@astercmihospital.com",
-             "departments":{"General Surgery":["Dr. L Rao"], "Urology":["Dr. I Ahmed"]}},
-            {"name":"Fortis Bannerghatta", "email":"contact.bg@fortishealthcare.com",
-             "departments":{"Orthopaedics":["Dr. R Dinesh"], "ENT":["Dr. P Reddy"]}},
-        ],
-        "coimbatore": [
-            {"name":"PSG Hospitals", "email":"psg.appt@psghospitals.com",
-             "departments":{"General Surgery":["Dr. M Mohan"], "Urology":["Dr. R Kumar"]}},
-            {"name":"KMCH", "email":"book@kmchhospitals.com",
-             "departments":{"Cardiology":["Dr. J Thomas"], "Spine/Neuro":["Dr. S Kumar"]}},
-            {"name":"GKNM", "email":"appointments@gknmhospital.org",
-             "departments":{"Orthopaedics":["Dr. A Kannan"], "ENT":["Dr. P Natarajan"]}},
-        ],
-        # ... add more cities as needed ...
-        "default": [
-            {"name":"Accredited tertiary center near you", "email":"", "departments":{"General":["Duty Doctor"]}}
-        ],
-    },
-    "conditions": {
-        "appendicitis": {
-            "display": "Acute Appendicitis",
-            "keywords": ["appendicitis","appendix","rlq pain","mcburney","appendectomy"],
-            "about": "Inflammation of the appendix causing right lower abdominal pain and fever.",
-            "actions": ["Urgent surgical evaluation","IV fluids & antibiotics per clinician","Nil by mouth if surgery planned"],
-            "recovery": ["Discharge ~24–48h after lap surgery","Light activity in a few days","Avoid heavy lifting 2–4 weeks"],
-            "specialist": "General Surgeon",
-            "surgeries": ["Laparoscopic appendectomy","Open appendectomy (selected)"],
-            "cost_inr": [60000, 250000]
-        },
-        "cholelithiasis": {
-            "display": "Gallstones / Cholecystitis",
-            "keywords": ["gallstones","cholelithiasis","biliary colic","cholecystitis","cholecystectomy"],
-            "about": "Stones in the gallbladder causing pain, sometimes infection (cholecystitis).",
-            "actions": ["Surgical consult","Pain control; antibiotics if infected","Low-fat diet initially"],
-            "recovery": ["Same/next-day discharge common","Desk work ~1 week","Strenuous activity 2–4 weeks"],
-            "specialist": "General Surgeon",
-            "surgeries": ["Laparoscopic cholecystectomy"],
-            "cost_inr": [80000, 300000]
-        },
-        "inguinal_hernia": {
-            "display": "Inguinal Hernia",
-            "keywords": ["inguinal hernia","groin bulge","hernioplasty","mesh repair"],
-            "about": "Weakness in the groin wall allowing tissue to bulge out; risk of strangulation.",
-            "actions": ["Elective surgical repair for symptoms","Urgent care if painful irreducible bulge"],
-            "recovery": ["Light activity 1–2 weeks","Avoid heavy lifting 4–6 weeks"],
-            "specialist": "General Surgeon",
-            "surgeries": ["Lap TEP/TAPP mesh repair","Open Lichtenstein mesh repair"],
-            "cost_inr": [60000, 200000]
-        },
-        "renal_stone": {
-            "display": "Kidney/Ureteric Stones",
-            "keywords": ["renal stone","kidney stone","ureteric stone","pcnl","urs","eswl"],
-            "about": "Crystals forming stones in kidney/ureter causing colicky pain; may block urine.",
-            "actions": ["Urology evaluation","Hydration/pain control","Decompression if infected obstruction"],
-            "recovery": ["Back to routine ~3–7 days (after URS/ESWL)","Follow stone-prevention advice"],
-            "specialist": "Urologist",
-            "surgeries": ["URS + laser lithotripsy","PCNL","ESWL (selected)"],
-            "cost_inr": [60000, 250000]
-        },
-        "uterine_fibroids": {
-            "display": "Uterine Fibroids",
-            "keywords": ["fibroid","leiomyoma","myomectomy","hysterectomy"],
-            "about": "Non-cancerous uterine growths causing bleeding, pain, or fertility issues.",
-            "actions": ["Gynecology consult","Assess size/symptoms/fertility plans"],
-            "recovery": ["Avoid heavy work 4–6 weeks post major surgery"],
-            "specialist": "Gynecologist",
-            "surgeries": ["Laparoscopic myomectomy","Hysterectomy (lap/open)"],
-            "cost_inr": [120000, 500000]
-        },
-        "acl_tear": {
-            "display": "ACL Tear",
-            "keywords": ["acl","anterior cruciate ligament","arthroscopy","reconstruction"],
-            "about": "Tear of knee’s ACL causing instability; athletes often need reconstruction.",
-            "actions": ["Ortho consult","Brace/physio; surgery if instability"],
-            "recovery": ["Rehab 4–6 months for sport return"],
-            "specialist": "Orthopaedic Surgeon",
-            "surgeries": ["Arthroscopic ACL reconstruction"],
-            "cost_inr": [150000, 400000]
-        },
-        "lumbar_disc_herniation": {
-            "display": "Lumbar Disc Herniation (Sciatica)",
-            "keywords": ["lumbar disc","l4-l5","l5-s1","sciatica","microdiscectomy"],
-            "about": "Slipped disc compressing nerve roots causing back pain radiating to leg.",
-            "actions": ["Spine/neuro consult","Conservative therapy first; surgery if deficits/persistent pain"],
-            "recovery": ["Avoid heavy lifting 4–6 weeks post-op; core strengthening"],
-            "specialist": "Spine/Neurosurgeon",
-            "surgeries": ["Microdiscectomy (selected)"],
-            "cost_inr": [150000, 400000]
-        },
-        "cad": {
-            "display": "Coronary Artery Disease",
-            "keywords": ["coronary","cad","angina","nstemi","stemi","myocardial infarction","mi"],
-            "about": "Narrowing/clot in heart arteries causing angina or heart attack.",
-            "actions": ["Emergency if chest pain at rest","Cardiology consult","ECG/troponin; anti-ischemic meds"],
-            "recovery": ["Cardiac rehab; risk-factor control; adherence to meds"],
-            "specialist": "Cardiologist / CTVS",
-            "surgeries": ["PCI (angioplasty + stent)","CABG (bypass) — selected"],
-            "cost_inr": [150000, 900000]
-        },
-        "dns_sinusitis": {
-            "display": "Deviated Septum / Chronic Sinusitis",
-            "keywords": ["deviated septum","dns","septoplasty","fess","sinusitis"],
-            "about": "Nasal septum deviation or chronic sinus inflammation causing blockage/infections.",
-            "actions": ["ENT consult","Nasal steroids/irrigation; surgery if failure"],
-            "recovery": ["Nasal care/irrigation; avoid nose-blowing early"],
-            "specialist": "ENT Surgeon",
-            "surgeries": ["Septoplasty","FESS"],
-            "cost_inr": [60000, 250000]
-        },
-        "cataract": {
-            "display": "Cataract",
-            "keywords": ["cataract","iols","phacoemulsification"],
-            "about": "Clouding of eye lens leading to gradual visual impairment.",
-            "actions": ["Ophthalmology consult","Surgery if vision function limited"],
-            "recovery": ["Eye drops regimen; protect eye 1–2 weeks"],
-            "specialist": "Ophthalmologist",
-            "surgeries": ["Phaco + IOL"],
-            "cost_inr": [20000, 120000]
-        },
-        "breast_lump": {
-            "display": "Breast Lump (suspicious/large)",
-            "keywords": ["breast lump","lumpectomy","mastectomy"],
-            "about": "Breast mass—needs imaging/biopsy to rule out cancer; surgery per stage.",
-            "actions": ["Breast/Onco consult","Imaging + core biopsy"],
-            "recovery": ["Drain care; arm exercises as advised"],
-            "specialist": "Breast/Onco Surgeon",
-            "surgeries": ["Lumpectomy","Mastectomy (team-based)"],
-            "cost_inr": [120000, 600000]
-        },
-    }
-}
+def load_rules(path: str) -> Dict[str, Any]:
+    if not YAML_AVAILABLE:
+        return {}
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+            return data or {}
+    except Exception:
+        return {}
+
+RULES = load_rules(RULES_FILE)
+if not YAML_AVAILABLE:
+    st.error("PyYAML (yaml) not installed. Install with `pip install PyYAML` and restart the app.")
+if not RULES:
+    st.warning(f"rules.yaml not found or empty at '{RULES_FILE}'. Please add rules.yaml next to app.py.")
+# Provide convenient access with defaults
+GENERAL_RULES = RULES.get("general_rules", {})
+DISEASES = RULES.get("diseases", []) or []
+CITIES = RULES.get("cities", {}) or {}
 
 # -----------------------------
 # Utilities
@@ -254,14 +115,29 @@ def normalize_text(t: str) -> str:
     return re.sub(r"\s+", " ", t or "").strip().lower()
 
 def list_india_cities() -> List[str]:
-    ks = [k for k in KB["hospitals"].keys() if k != "default"]
-    return sorted(ks)
+    ks = sorted([k for k in CITIES.keys() if k and k != "default"])
+    return ks
 
 def india_adjust_cost(base: List[int], city: str) -> Tuple[int, int]:
     if not base or len(base) != 2:
         return (0, 0)
-    m = KB["city_cost_modifiers"].get((city or "").strip().lower(), KB["city_cost_modifiers"]["default"])
-    return (int(base[0]*m), int(base[1]*m))
+    cm = 1.0
+    if city:
+        city_key = (city or "").strip().lower()
+        if city_key in CITIES and isinstance(CITIES[city_key].get("cost_modifier"), (int, float)):
+            cm = float(CITIES[city_key]["cost_modifier"])
+        else:
+            # fallback to default if present
+            default = CITIES.get("default", {})
+            cm = float(default.get("cost_modifier", 1.0))
+    else:
+        cm = float(CITIES.get("default", {}).get("cost_modifier", 1.0))
+    return (int(base[0]*cm), int(base[1]*cm))
+
+def nearby_hospitals(city: str) -> List[Dict[str, Any]]:
+    if not city:
+        return CITIES.get("default", {}).get("hospitals", [])
+    return CITIES.get((city or "").strip().lower(), CITIES.get("default", {})).get("hospitals", [])
 
 def ascii_safe(s: str) -> str:
     if not s:
@@ -273,13 +149,17 @@ def ascii_safe(s: str) -> str:
     return out.encode("ascii", "replace").decode("ascii")
 
 # -----------------------------
-# Extraction
+# Extraction (safe OCR)
 # -----------------------------
 def extract_text_from_file(uploaded) -> Tuple[str, List[str]]:
     warnings = []
-    name = uploaded.name.lower()
+    try:
+        name = uploaded.name.lower()
+    except Exception:
+        name = ""
     data = uploaded.read()
 
+    # PDF
     if name.endswith(".pdf"):
         try:
             text = ""
@@ -290,6 +170,7 @@ def extract_text_from_file(uploaded) -> Tuple[str, List[str]]:
         except Exception as e:
             return "", [f"PDF read error: {e}"]
 
+    # DOCX
     if name.endswith(".docx"):
         try:
             buf = io.BytesIO(data)
@@ -297,18 +178,24 @@ def extract_text_from_file(uploaded) -> Tuple[str, List[str]]:
         except Exception as e:
             return "", [f"DOCX read error: {e}"]
 
+    # IMAGE -> OCR
     try:
         im = Image.open(io.BytesIO(data)).convert("RGB")
         if OCR_AVAILABLE:
-            return (pytesseract.image_to_string(im) or ""), warnings
+            try:
+                text = pytesseract.image_to_string(im)
+                return text or "", warnings
+            except Exception as e:
+                warnings.append(f"OCR failed: {e}")
+                return "", warnings
         else:
-            warnings.append("OCR not available. Install Tesseract+pytesseract.")
+            warnings.append("OCR not available. Install pytesseract + system Tesseract to enable image OCR.")
             return "", warnings
     except Exception:
-        return "", ["Unsupported file. Upload PDF/DOCX/JPG/PNG."]
+        return "", ["Unsupported file. Upload PDF / DOCX / JPG / PNG."]
 
 # -----------------------------
-# Parsing & detection
+# Parsing & detection (YAML-driven)
 # -----------------------------
 def parse_entities(text: str) -> Dict[str, Any]:
     ents: Dict[str, Any] = {}
@@ -332,78 +219,98 @@ def summarize_problems(text: str) -> List[str]:
                 probs.append(s[:300])
     if not probs:
         lines = [l.strip() for l in (text or "").splitlines() if l.strip()]
-        keywords = ["pain","lesion","fracture","mass","infection","infarct","tear","hernia","stone",
-                    "blockage","tumor","ischemia","angina","colic"]
+        keywords = ["pain","lesion","fracture","mass","infection","infarct","tear","hernia","stone","blockage","tumor","ischemia","angina","colic"]
         guesses = [l for l in lines if any(w in l.lower() for w in keywords)]
         probs = list(dict.fromkeys(guesses[:3]))
     return probs
 
 def word_hit(hay: str, needle: str) -> bool:
-    if len(needle.strip()) < 3:
+    if not needle or len(needle.strip()) < 2:
         return False
     return re.search(rf"\b{re.escape(needle.lower())}\b", hay) is not None
 
 def detect_conditions(text: str) -> List[Dict]:
     t = normalize_text(text)
     results = []
-    for key, meta in KB["conditions"].items():
-        hits = [kw for kw in meta["keywords"] if word_hit(t, kw)]
+    for d in DISEASES:
+        kws = d.get("keywords", []) or []
+        hits = [kw for kw in kws if word_hit(t, kw)]
         if hits:
             results.append({
-                "key": key,
-                "name": meta["display"],
+                "name": d.get("name"),
                 "hits": hits,
-                "about": meta["about"],
-                "actions": meta["actions"],
-                "recovery": meta["recovery"],
-                "specialist": meta["specialist"],
-                "surgeries": meta["surgeries"],
-                "cost_inr": meta["cost_inr"],
+                "about": d.get("about", ""),
+                "procedures": d.get("procedures", []),
+                "recovery_recos": d.get("recovery_recos", []),
+                "severity_rules": d.get("severity_rules", {}),
+                "cost_inr": d.get("cost_inr", [0,0])
             })
     results.sort(key=lambda x: len(x["hits"]), reverse=True)
     return results
 
 def severity_percent(text: str, cond: Dict) -> int:
     t = normalize_text(text)
-    signals = ["severe","acute","sudden","worsening","emergency","fever","syncope","vomiting","bleeding",
-               "dyspnea","chest pain","unstable","shock","collapse","sepsis","uncontrolled",
-               "tachycardia","hypotension"]
-    s = sum(1 for w in signals if w in t)
+    # disease-specific red flags from YAML
+    disease_reds = [r.lower() for r in (cond.get("severity_rules", {}).get("red_flags", []) or [])]
+    general_reds = [r.lower() for r in (GENERAL_RULES.get("red_flags", []) or [])]
+    signals = ["severe","acute","sudden","worsening","emergency","fever","syncope","vomiting","bleeding","dyspnea","chest pain","unstable","shock","collapse","sepsis","uncontrolled","hypotension","tachycardia"]
+    s = 0
+    # count general red flags
+    for rf in general_reds:
+        if rf and rf in t:
+            s += 3
+    # count disease red flags
+    for rf in disease_reds:
+        if rf and rf in t:
+            s += 3
+    # count signal words
+    s += sum(1 for w in signals if w in t)
+    # boost by number of keyword hits
     hits_boost = min(5, len(cond.get("hits", [])))
     pct = s * 8 + hits_boost * 10
     if len(cond.get("hits", [])) > 0 and pct < 10:
         pct = 10
     pct = max(0, min(95, pct))
-    if any(p in t for p in ["normal study", "within normal limits", "no acute", "normal chest x-ray", "normal chest xray"]):
+    # If text suggests normal exam reduce
+    if any(p in t for p in ["normal study", "within normal limits", "no acute", "impression: normal", "normal chest xray", "normal study"]):
         pct = min(pct, 5)
     return int(pct)
 
 # -----------------------------
-# Booking storage (CSV)
+# Bookings persistence (JSON)
 # -----------------------------
-def load_bookings() -> pd.DataFrame:
-    if os.path.exists(BOOKINGS_CSV):
-        try:
-            return pd.read_csv(BOOKINGS_CSV, dtype=str)
-        except Exception:
-            return pd.DataFrame(columns=["booking_id","patient_name","patient_phone","patient_email",
-                                         "city","hospital","department","doctor","date","time"])
-    else:
-        return pd.DataFrame(columns=["booking_id","patient_name","patient_phone","patient_email",
-                                     "city","hospital","department","doctor","date","time"])
+def load_bookings() -> List[Dict[str,str]]:
+    if not os.path.exists(BOOKINGS_FILE):
+        return []
+    try:
+        with open(BOOKINGS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data or []
+    except Exception:
+        return []
 
-def save_bookings(df: pd.DataFrame):
-    df.to_csv(BOOKINGS_CSV, index=False)
+def save_bookings(rows: List[Dict[str,str]]):
+    try:
+        with open(BOOKINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(rows, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
 
-def slot_taken(df: pd.DataFrame, hospital: str, doctor: str, dt_str: str, tm_str: str) -> bool:
-    if df.empty: return False
-    m = df[(df["hospital"]==hospital) & (df["doctor"]==doctor) & (df["date"]==dt_str) & (df["time"]==tm_str)]
-    return not m.empty
+def slot_taken(rows: List[Dict[str,str]], hospital: str, doctor: str, dt_str: str, tm_str: str) -> bool:
+    if not rows:
+        return False
+    for r in rows:
+        if r.get("hospital")==hospital and r.get("doctor")==doctor and r.get("date")==dt_str and r.get("time")==tm_str:
+            return True
+    return False
 
-def cancel_booking(booking_id: str):
-    df = load_bookings()
-    df2 = df[df["booking_id"] != booking_id]
-    save_bookings(df2)
+def cancel_booking(booking_id: str) -> bool:
+    rows = load_bookings()
+    new_rows = [r for r in rows if r.get("booking_id") != booking_id]
+    if len(new_rows) != len(rows):
+        save_bookings(new_rows)
+        return True
+    return False
 
 # -----------------------------
 # PDF / ICS builders
@@ -434,13 +341,13 @@ def build_full_pdf(entities: Dict, problems: List[str], best: Dict, city: str,
     sec("Condition & Care Plan (informational)")
     if best:
         pdf.multi_cell(0, 6, ascii_safe(f"Likely condition: {best['name']}"))
-        pdf.multi_cell(0, 6, ascii_safe(f"Specialist: {best['specialist']}"))
-        pdf.multi_cell(0, 6, ascii_safe(f"About: {best['about']}"))
-        pdf.multi_cell(0, 6, ascii_safe(f"Typical surgery: {', '.join(best['surgeries'])}"))
-        pdf.multi_cell(0, 6, ascii_safe(f"Immediate steps: {', '.join(best['actions'])}"))
-        pdf.multi_cell(0, 6, ascii_safe(f"Recovery: {' | '.join(best['recovery'])}"))
-        pdf.multi_cell(0, 6, ascii_safe(f"Severity: {best['severity_pct']}%"))
-        pdf.multi_cell(0, 6, ascii_safe(f"Estimated cost (INR): Rs {best['cost_low']:,} – Rs {best['cost_high']:,}"))
+        pdf.multi_cell(0, 6, ascii_safe(f"About: {best.get('about','—')}"))
+        pdf.multi_cell(0, 6, ascii_safe(f"Typical procedures: {', '.join(best.get('procedures', []) or [])}"))
+        pdf.multi_cell(0, 6, ascii_safe(f"Immediate steps: {', '.join(best.get('procedures', []) or [])}"))
+        pdf.multi_cell(0, 6, ascii_safe(f"Recovery: {' | '.join(best.get('recovery_recos', []) or [])}"))
+        pdf.multi_cell(0, 6, ascii_safe(f"Severity: {best.get('severity_pct','—')}%"))
+        lo, hi = india_adjust_cost(best.get("cost_inr", [0,0]), city)
+        pdf.multi_cell(0, 6, ascii_safe(f"Estimated cost (INR): Rs {lo:,} – Rs {hi:,}"))
     else:
         pdf.multi_cell(0, 6, ascii_safe("No condition pattern matched, or report appears normal."))
 
@@ -506,7 +413,7 @@ END:VCALENDAR"""
     return ics.encode("utf-8")
 
 # -----------------------------
-# Email — flexible SMTP (host/port/security + fallback)
+# Email — flexible SMTP
 # -----------------------------
 def send_email_flexible(sender_email: str, sender_password: str,
                         to_email: str, subject: str, body: str,
@@ -580,7 +487,8 @@ with colR:
 if uploaded is not None:
     text, warns = extract_text_from_file(uploaded)
     st.session_state.extracted_text = text
-    if warns: st.warning("\n".join(warns))
+    if warns:
+        st.warning("\n".join(warns))
 
 if st.session_state.extracted_text:
     # Parse & detect
@@ -600,9 +508,12 @@ if st.session_state.extracted_text:
     if detected:
         for c in detected:
             sev_pct = severity_percent(st.session_state.extracted_text, c)
-            lo, hi = india_adjust_cost(c["cost_inr"], city)
-            alts.append({**c, "severity_pct": sev_pct, "cost_low": lo, "cost_high": hi})
-        alts.sort(key=lambda x: (len(x["hits"]), x["severity_pct"]), reverse=True)
+            lo, hi = india_adjust_cost(c.get("cost_inr", [0,0]), city)
+            c["severity_pct"] = sev_pct
+            c["cost_low"] = lo
+            c["cost_high"] = hi
+            alts.append(c)
+        alts.sort(key=lambda x: (len(x.get("hits", [])), x.get("severity_pct", 0)), reverse=True)
         best = alts[0]
         st.session_state.alt_conditions = alts[1:]
     else:
@@ -613,7 +524,8 @@ if st.session_state.extracted_text:
     st.session_state.best_condition = best
 
     # Hospitals list (names only for display block)
-    hospitals_list = [h["name"] for h in KB["hospitals"].get(city, KB["hospitals"]["default"])]
+    hosp_objs = nearby_hospitals(city)
+    hospitals_list = [h.get("name","") for h in hosp_objs]
     st.session_state.hospitals = hospitals_list
 
     # ---------- 2) Patient summary ----------
@@ -639,20 +551,18 @@ if st.session_state.extracted_text:
     st.markdown('<div class="section-title">3) Condition & care plan (informational)</div>', unsafe_allow_html=True)
 
     if best:
-        pct = best["severity_pct"]
+        pct = best.get("severity_pct", 0)
         sev_color = "#047857" if pct < 34 else ("#b45309" if pct < 67 else "#b91c1c")
         st.markdown(
             f'<div class="card"><span class="sev-tag" style="background:#f3f4f6;color:{sev_color};">Severity: {pct}%</span></div>',
             unsafe_allow_html=True
         )
         df_cond = pd.DataFrame([
-            ["Likely condition", best["name"]],
-            ["Specialist", best["specialist"]],
-            ["About", best["about"]],
-            ["What to do now", " ; ".join(best["actions"])],
-            ["Recovery (typical)", " | ".join(best["recovery"])],
-            ["Typical surgeries", ", ".join(best["surgeries"])],
-            ["Estimated cost (INR)", f"₹{best['cost_low']:,} – ₹{best['cost_high']:,}"],
+            ["Likely condition", best.get("name")],
+            ["About", best.get("about","")],
+            ["What to do now", " ; ".join(best.get("procedures", []) or [])],
+            ["Recovery (typical)", " | ".join(best.get("recovery_recos", []) or [])],
+            ["Estimated cost (INR)", f"₹{best.get('cost_low',0):,} – ₹{best.get('cost_high',0):,}"],
         ], columns=["Item", "Details"])
         st.table(df_cond)
     else:
@@ -666,30 +576,30 @@ if st.session_state.extracted_text:
     st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
     st.markdown('<div class="section-title">5) Hospital Appointment Booking</div>', unsafe_allow_html=True)
 
-    hosp_dir = KB["hospitals"].get(city, KB["hospitals"]["default"])
+    hosp_dir = hosp_objs or CITIES.get("default", {}).get("hospitals", [])
     if not hosp_dir:
         st.info("Select a city with hospitals in the sidebar to enable booking.")
     else:
         # Choose hospital
-        hospital_names = [h["name"] for h in hosp_dir]
+        hospital_names = [h.get("name","") for h in hosp_dir]
         h_idx = st.selectbox("Choose a hospital", list(range(len(hospital_names))),
                              format_func=lambda i: hospital_names[i])
         chosen_h = hosp_dir[h_idx]
-        hospital_name = chosen_h["name"]
+        hospital_name = chosen_h.get("name","")
         hospital_email = chosen_h.get("email","")
 
         # Choose department (suggest from condition)
         suggested_dept = None
         if best:
-            # naive map specialist → department key
-            spec = best["specialist"].lower()
-            if "cardio" in spec: suggested_dept = "Cardiology"
-            elif "urolog" in spec: suggested_dept = "Urology"
+            spec = (best.get("name","") or "").lower()
+            # naive mapping by name keywords in disease name
+            if "card" in spec or "coronary" in spec: suggested_dept = "Cardiology"
+            elif "urolog" in spec or "renal" in spec or "stone" in spec: suggested_dept = "Urology"
             elif "spine" in spec or "neuro" in spec: suggested_dept = "Spine/Neuro"
-            elif "ent" in spec: suggested_dept = "ENT"
-            elif "ophthal" in spec: suggested_dept = "Ophthalmology"
-            elif "orthop" in spec: suggested_dept = "Orthopaedics"
-            elif "general" in spec and "surgery" in spec: suggested_dept = "General Surgery"
+            elif "ent" in spec or "sinus" in spec: suggested_dept = "ENT"
+            elif "ophth" in spec or "cataract" in spec: suggested_dept = "Ophthalmology"
+            elif "orth" in spec or "acl" in spec or "fracture" in spec: suggested_dept = "Orthopaedics"
+            elif "append" in spec or "hernia" in spec or "gall" in spec or "general" in spec: suggested_dept = "General Surgery"
 
         dept_names = list(chosen_h.get("departments", {}).keys())
         if suggested_dept in dept_names:
@@ -701,7 +611,7 @@ if st.session_state.extracted_text:
         doctor = st.selectbox("Doctor", doctors)
 
         # Slot picker (next 14 days, 09:00–17:00, 30-min)
-        df_book = load_bookings()
+        rows = load_bookings()
         colA, colB = st.columns(2)
         with colA:
             appt_date = st.date_input("Choose date", value=date.today(), min_value=date.today(), max_value=date.today()+timedelta(days=14))
@@ -716,7 +626,7 @@ if st.session_state.extracted_text:
                 cur += timedelta(minutes=30)
 
             # remove taken
-            free_slots = [s for s in slots if not slot_taken(df_book, hospital_name, doctor, str(appt_date), s)]
+            free_slots = [s for s in slots if not slot_taken(rows, hospital_name, doctor, str(appt_date), s)]
             appt_time = st.selectbox("Available time", free_slots or ["No slots available"])
 
         # Patient details
@@ -746,8 +656,8 @@ if st.session_state.extracted_text:
                     "date": str(appt_date),
                     "time": appt_time
                 }
-                df_new = pd.concat([df_book, pd.DataFrame([new_row])], ignore_index=True)
-                save_bookings(df_new)
+                rows.append(new_row)
+                save_bookings(rows)
 
                 st.success(f"Booked! ID: {booking_id}")
                 # Build receipt PDF + ICS
@@ -795,7 +705,6 @@ if st.session_state.extracted_text:
         sender_pass  = st.text_input("App password / SMTP password", type="password")
         send_copy_to_me = st.checkbox("Send me a copy (BCC)", value=True)
     with colE2:
-        # Try to use chosen hospital email if booking section was used
         fallback_email = ""
         if hosp_dir:
             fallback_email = hosp_dir[0].get("email","")
@@ -813,8 +722,7 @@ if st.session_state.extracted_text:
     if len(st.session_state.problems) > 0:
         body_lines.append("Report highlights: " + "; ".join(st.session_state.problems[:3]))
     if st.session_state.best_condition:
-        body_lines.append(f"Possible condition (non-diagnostic): {st.session_state.best_condition['name']} "
-                          f"| Severity: {st.session_state.best_condition['severity_pct']}%")
+        body_lines.append(f"Possible condition (non-diagnostic): {st.session_state.best_condition.get('name')} | Severity: {st.session_state.best_condition.get('severity_pct')}%")
     body_lines.append("Please find attached a booking receipt (if I booked a slot) and my clinical summary.")
     body_lines += ["", "Thank you,", st.session_state.entities.get("Name","Patient") or "Patient"]
     email_body = "\n".join(body_lines)
@@ -850,17 +758,17 @@ if st.session_state.extracted_text:
 st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
 st.markdown('<div class="section-title">My Bookings</div>', unsafe_allow_html=True)
 
-df_all = load_bookings()
-if df_all.empty:
+all_rows = load_bookings()
+if not all_rows:
     st.info("No bookings yet.")
 else:
-    st.dataframe(df_all, use_container_width=True)
+    st.dataframe(pd.DataFrame(all_rows), use_container_width=True)
     # Cancel controls
     cancel_id = st.text_input("Enter Booking ID to cancel")
     if st.button("Cancel Booking"):
         if cancel_id.strip():
-            if cancel_id in set(df_all["booking_id"].astype(str)):
-                cancel_booking(cancel_id.strip())
+            ok = cancel_booking(cancel_id.strip())
+            if ok:
                 st.success("Booking cancelled.")
             else:
                 st.error("Booking ID not found.")
