@@ -1,15 +1,15 @@
-# app.py
+# Part 1/6 — Imports, YAML loader, KB builder, core utilities
 # -------------------------------------------------------------------
 # Clinical Report Helper (YAML-driven, full feature set)
-# - Loads rules (diseases, general red flags, cities, hospitals) from rules.yaml
-# - Upload PDF/DOCX/IMAGE -> extract text (OCR optional) -> detect conditions
-# - Booking system uses hospitals from rules.yaml (stores bookings in bookings.json)
-# - Builds Full Report PDF, Booking Receipt PDF, .ics; flexible SMTP email
-# - Informational only — not medical advice.
+# This file is split into parts. Paste Part 1 first, then Parts 2..6 in order.
 # -------------------------------------------------------------------
 
 import streamlit as st
-import io, re, json, uuid, os
+import io
+import re
+import json
+import uuid
+import os
 from typing import Dict, List, Tuple, Any
 from datetime import datetime, date, time, timedelta
 
@@ -23,10 +23,12 @@ try:
     import pytesseract
     OCR_AVAILABLE = True
 except Exception:
+    pytesseract = None
     OCR_AVAILABLE = False
 
 from fpdf import FPDF
-import smtplib, ssl
+import smtplib
+import ssl
 from email.message import EmailMessage
 
 # YAML loader (optional)
@@ -37,11 +39,12 @@ except Exception:
     yaml = None
     YAML_AVAILABLE = False
 
+# Files / constants
 RULES_FILE = "rules.yaml"
 BOOKINGS_FILE = "bookings.json"
 
 # -----------------------------
-# Page & minimal styling
+# Streamlit page config + styling
 # -----------------------------
 st.set_page_config(page_title="Clinical Report Helper (India)", page_icon="🩺", layout="wide")
 st.markdown("""
@@ -77,15 +80,19 @@ for k, v in {
         st.session_state[k] = v
 
 # -----------------------------
-# Helpers: load YAML -> normalize into internal KB
+# YAML loader + KB builder
 # -----------------------------
 def load_rules_yaml(path: str) -> Dict[str, Any]:
-    """Load rules.yaml if available. Return empty dict on failure."""
+    """
+    Load rules.yaml (if PyYAML available). Return an empty dict on failure.
+    The file must have top-level keys: general_rules, city_cost_modifiers (optional),
+    hospitals, diseases.
+    """
     if not YAML_AVAILABLE:
         return {}
-    if not os.path.exists(path):
-        return {}
     try:
+        if not os.path.exists(path):
+            return {}
         with open(path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
             return data or {}
@@ -97,128 +104,164 @@ def normalize_city_key(k: str) -> str:
 
 def build_internal_kb(rules: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Take the YAML structure (rules) and convert to a normalized internal KB dict:
+    Convert rules.yaml structure into an internal KB used by the app.
+    Output schema:
     {
-      "city_cost_modifiers": {...},
-      "hospitals": { city_key: [ {name, email, departments: {dept: [doctors]}} ] },
-      "conditions": { cond_key: {display, keywords, severity_rules, procedures, recovery_recos, cost_inr, about} }
+      "city_cost_modifiers": {city_key: float, ... , "default": 1.0},
+      "hospitals": { city_key: [ {name, email, departments: {dept: [doctors]}}, ... ], ... },
+      "conditions": { cond_key: {display, keywords, severity_rules, procedures, recovery_recos, cost_inr, about}, ... },
+      "general_red_flags": [ ... ]
     }
     """
-    kb = {
+    kb: Dict[str, Any] = {
         "city_cost_modifiers": {},
         "hospitals": {},
-        "conditions": {}
+        "conditions": {},
+        "general_red_flags": []
     }
 
-    # city cost modifiers - YAML may provide a 'cities' mapping
-    cities = rules.get("cities", {})
-    for c, v in (cities.items() if isinstance(cities, dict) else []):
+    # city_cost_modifiers: may be top-level or inside a `cities` section
+    # Accept either:
+    # city_cost_modifiers:
+    #   mumbai: 1.25
+    # or
+    # cities:
+    #   mumbai:
+    #     cost_modifier: 1.25
+    #     hospitals: [...]
+    city_costs = rules.get("city_cost_modifiers", {}) or {}
+    for k, v in (city_costs.items() if isinstance(city_costs, dict) else []):
         try:
-            kb["city_cost_modifiers"][normalize_city_key(c)] = float(v.get("cost_modifier", v) if isinstance(v, dict) else v)
+            kb["city_cost_modifiers"][normalize_city_key(k)] = float(v)
         except Exception:
-            try:
-                kb["city_cost_modifiers"][normalize_city_key(c)] = float(v)
-            except Exception:
-                pass
+            pass
 
-    # fallback default modifier
-    if "default" not in kb["city_cost_modifiers"]:
-        kb["city_cost_modifiers"]["default"] = 1.0
+    # Also inspect 'cities' section (optional)
+    cities_section = rules.get("cities", {}) or {}
+    if isinstance(cities_section, dict):
+        for c, info in cities_section.items():
+            ck = normalize_city_key(c)
+            if isinstance(info, dict):
+                cm = info.get("cost_modifier")
+                if cm is not None:
+                    try:
+                        kb["city_cost_modifiers"][ck] = float(cm)
+                    except Exception:
+                        pass
 
-    # hospitals - rules may have 'hospitals' key where each city contains list of hospitals
+    # ensure default modifier
+    kb["city_cost_modifiers"].setdefault("default", 1.0)
+
+    # hospitals — top-level 'hospitals' expected: mapping city -> list of hospital objects
     hospitals_root = rules.get("hospitals", {}) or {}
-    for city_name, hlist in hospitals_root.items():
-        ck = normalize_city_key(city_name)
-        kb["hospitals"][ck] = []
-        if not isinstance(hlist, list):
-            continue
-        for h in hlist:
-            name = h.get("name", "")
-            email = h.get("email", "")
-            departments = h.get("departments", {}) or {}
-            # ensure departments maps to lists
-            dept_clean = {}
-            for dname, docs in departments.items():
-                if isinstance(docs, list):
-                    dept_clean[dname] = docs
-                else:
-                    # if single string
-                    dept_clean[dname] = [docs]
-            kb["hospitals"][ck].append({"name": name, "email": email, "departments": dept_clean})
+    if isinstance(hospitals_root, dict):
+        for city_name, hlist in hospitals_root.items():
+            ck = normalize_city_key(city_name)
+            kb["hospitals"].setdefault(ck, [])
+            if isinstance(hlist, list):
+                for h in hlist:
+                    if not isinstance(h, dict):
+                        continue
+                    name = h.get("name", "") or ""
+                    email = h.get("email", "") or ""
+                    departments = h.get("departments", {}) or {}
+                    dept_clean: Dict[str, List[str]] = {}
+                    if isinstance(departments, dict):
+                        for dname, docs in departments.items():
+                            if isinstance(docs, list):
+                                dept_clean[dname] = docs
+                            elif docs is None:
+                                dept_clean[dname] = []
+                            else:
+                                dept_clean[dname] = [docs]
+                    kb["hospitals"][ck].append({"name": name, "email": email, "departments": dept_clean})
 
-    # If YAML had a top-level 'cities' which included hospitals nested, include them too
-    for city_name, cinfo in (cities.items() if isinstance(cities, dict) else []):
-        ck = normalize_city_key(city_name)
-        if isinstance(cinfo, dict) and "hospitals" in cinfo:
-            kb.setdefault("hospitals", {}).setdefault(ck, [])
-            for h in cinfo.get("hospitals", []) or []:
-                name = h.get("name", "")
-                email = h.get("email", "")
-                departments = h.get("departments", {}) or {}
-                dept_clean = {}
-                for dname, docs in departments.items():
-                    if isinstance(docs, list):
-                        dept_clean[dname] = docs
-                    else:
-                        dept_clean[dname] = [docs]
-                kb["hospitals"][ck].append({"name": name, "email": email, "departments": dept_clean})
-            # load cost modifier if present
-            cm = cinfo.get("cost_modifier")
-            if cm is not None:
-                try:
-                    kb["city_cost_modifiers"][ck] = float(cm)
-                except Exception:
-                    pass
+    # also accept hospitals under cities section
+    if isinstance(cities_section, dict):
+        for city_name, cinfo in cities_section.items():
+            ck = normalize_city_key(city_name)
+            if isinstance(cinfo, dict):
+                hlist = cinfo.get("hospitals", []) or []
+                kb["hospitals"].setdefault(ck, [])
+                for h in (hlist if isinstance(hlist, list) else []):
+                    if not isinstance(h, dict):
+                        continue
+                    name = h.get("name", "") or ""
+                    email = h.get("email", "") or ""
+                    departments = h.get("departments", {}) or {}
+                    dept_clean: Dict[str, List[str]] = {}
+                    if isinstance(departments, dict):
+                        for dname, docs in departments.items():
+                            if isinstance(docs, list):
+                                dept_clean[dname] = docs
+                            elif docs is None:
+                                dept_clean[dname] = []
+                            else:
+                                dept_clean[dname] = [docs]
+                    kb["hospitals"][ck].append({"name": name, "email": email, "departments": dept_clean})
+                # also capture cost_modifier if present
+                cm = cinfo.get("cost_modifier")
+                if cm is not None:
+                    try:
+                        kb["city_cost_modifiers"][ck] = float(cm)
+                    except Exception:
+                        pass
 
-    # conditions/diseases
+    # ensure a default hospital entry exists
+    if "default" not in kb["hospitals"]:
+        kb["hospitals"]["default"] = [{"name": "Accredited tertiary center near you", "email": "", "departments": {"General": ["Duty Doctor"]}}]
+
+    # diseases -> conditions
     diseases = rules.get("diseases", []) or []
-    for d in diseases:
-        name = d.get("name", "unknown").strip()
-        # key: normalized
-        key = re.sub(r"\s+", "_", name.lower())
-        kb["conditions"][key] = {
-            "display": name,
-            "keywords": d.get("keywords", []) or [],
-            "severity_rules": d.get("severity_rules", {}) or {},
-            "procedures": d.get("procedures", []) or [],
-            "recovery_recos": d.get("recovery_recos", []) or [],
-            "cost_inr": d.get("cost_inr", [0,0]) or [0,0],
-            "about": d.get("about", "") or ""
-        }
+    if isinstance(diseases, list):
+        for d in diseases:
+            if not isinstance(d, dict):
+                continue
+            name = (d.get("name") or "unknown").strip()
+            key = re.sub(r"\s+", "_", name.lower())
+            kb["conditions"][key] = {
+                "display": name,
+                "keywords": d.get("keywords", []) or [],
+                "severity_rules": d.get("severity_rules", {}) or {},
+                "procedures": d.get("procedures", []) or [],
+                "recovery_recos": d.get("recovery_recos", []) or [],
+                "cost_inr": d.get("cost_inr", [0, 0]) or [0, 0],
+                "about": d.get("about", "") or ""
+            }
 
-    # general_rules handling: red_flags can be in general_rules
+    # general red flags
     general_rules = rules.get("general_rules", {}) or {}
     kb["general_red_flags"] = general_rules.get("red_flags", []) or []
 
-    # ensure defaults
+    # final defaults
     kb["city_cost_modifiers"].setdefault("default", 1.0)
-    if "default" not in kb["hospitals"]:
-        kb["hospitals"].setdefault("default", [{"name": "Accredited tertiary center near you", "email": "", "departments": {"General": ["Duty Doctor"]}}])
-
     return kb
 
-# Load YAML -> build KB
+# Load YAML and build KB once at startup
 RULES = load_rules_yaml(RULES_FILE)
 KB = build_internal_kb(RULES)
 
 # -----------------------------
-# Utilities that use KB
+# Core utility functions used by the rest of the app
 # -----------------------------
 def normalize_text(t: str) -> str:
-    return re.sub(r"\s+", " ", t or "").strip().lower()
+    return re.sub(r"\s+", " ", (t or "")).strip().lower()
 
 def list_india_cities() -> List[str]:
-    ks = [k for k in KB["hospitals"].keys() if k != "default"]
+    ks = [k for k in KB.get("hospitals", {}).keys() if k != "default"]
     return sorted(ks)
 
 def india_adjust_cost(base: List[int], city: str) -> Tuple[int, int]:
     if not base or len(base) != 2:
         return (0, 0)
-    m = KB["city_cost_modifiers"].get(normalize_city_key(city), KB["city_cost_modifiers"]["default"])
-    return (int(base[0]*m), int(base[1]*m))
+    m = KB.get("city_cost_modifiers", {}).get(normalize_city_key(city), KB.get("city_cost_modifiers", {}).get("default", 1.0))
+    try:
+        return (int(base[0] * float(m)), int(base[1] * float(m)))
+    except Exception:
+        return (int(base[0]), int(base[1]))
 
-def nearby_hospitals(city: str) -> List[Dict[str,Any]]:
-    return KB["hospitals"].get(normalize_city_key(city), KB["hospitals"]["default"])
+def nearby_hospitals(city: str) -> List[Dict[str, Any]]:
+    return KB.get("hospitals", {}).get(normalize_city_key(city), KB.get("hospitals", {}).get("default", []))
 
 def ascii_safe(s: str) -> str:
     if not s:
@@ -233,339 +276,193 @@ def ascii_safe(s: str) -> str:
         out = out.replace(k, v)
     return out.encode("ascii", "replace").decode("ascii")
 
+# End of Part 1/6
+# Paste Part 2/6 next (Extraction + Parsing + Detection)
+# Part 2/6 — Extraction + Parsing + Condition Detection
+# -------------------------------------------------------------------
+
 # -----------------------------
-# Extraction (safe OCR)
+# Extract text from uploaded files
 # -----------------------------
 def extract_text_from_file(uploaded) -> Tuple[str, List[str]]:
     warnings = []
-    try:
-        name = uploaded.name.lower()
-    except Exception:
-        name = ""
+    name = uploaded.name.lower()
     data = uploaded.read()
 
+    # PDF extraction
     if name.endswith(".pdf"):
         try:
             text = ""
             with pdfplumber.open(io.BytesIO(data)) as pdf:
                 for page in pdf.pages:
-                    text += "\n" + (page.extract_text() or "")
+                    t = page.extract_text() or ""
+                    text += "\n" + t
             return text.strip(), warnings
         except Exception as e:
-            return "", [f"PDF read error: {e}"]
+            return "", [f"PDF read error: {str(e)}"]
 
+    # DOCX extraction
     if name.endswith(".docx"):
         try:
             buf = io.BytesIO(data)
             return (docx2txt.process(buf) or ""), warnings
         except Exception as e:
-            return "", [f"DOCX read error: {e}"]
+            return "", [f"DOCX read error: {str(e)}"]
 
+    # Image (JPG/PNG) extraction with OCR
     try:
         im = Image.open(io.BytesIO(data)).convert("RGB")
         if OCR_AVAILABLE:
-            try:
-                return (pytesseract.image_to_string(im) or ""), warnings
-            except Exception as e:
-                warnings.append(f"OCR failed: {e}")
-                return "", warnings
+            text = pytesseract.image_to_string(im) or ""
+            return text, warnings
         else:
-            warnings.append("OCR not available. Install pytesseract + Tesseract for image OCR.")
+            warnings.append("OCR not available — install Tesseract for image text extraction.")
             return "", warnings
     except Exception:
-        return "", ["Unsupported file. Upload PDF/DOCX/JPG/PNG."]
+        return "", ["Unsupported file. Please upload PDF, DOCX, JPG, or PNG."]
 
 # -----------------------------
-# Parsing & detection
+# Parse patient entities
 # -----------------------------
 def parse_entities(text: str) -> Dict[str, Any]:
-    ents: Dict[str, Any] = {}
-    m = re.search(r"(?i)\b(patient\s*name|name)\s*[:\-]\s*([A-Za-z ,.'-]{2,60})", text or "")
-    ents["Name"] = (m.group(2).strip() if m else "")
+    ents = {}
+
+    # Name
+    m = re.search(r"(?i)\b(name|patient\s*name)\s*[:\-]\s*([A-Za-z ,.'-]{2,60})", text or "")
+    ents["Name"] = m.group(2).strip() if m else ""
+
+    # Age
     m = re.search(r"(?i)\b(age)\s*[:\-]\s*(\d{1,3})", text or "")
-    ents["Age"] = (m.group(2) if m else "")
+    ents["Age"] = m.group(2) if m else ""
+
+    # Sex / Gender
     m = re.search(r"(?i)\b(sex|gender)\s*[:\-]\s*(male|female|m|f|other)", text or "")
-    ents["Sex"] = (m.group(2).capitalize() if m else "")
+    ents["Sex"] = m.group(2).capitalize() if m else ""
+
     return ents
 
+# -----------------------------
+# Summarize problems / impressions from text
+# -----------------------------
 def summarize_problems(text: str) -> List[str]:
     probs = []
-    for pat in [r"(?i)impression\s*[:\-]\s*(.+)",
-                r"(?i)diagnosis\s*[:\-]\s*(.+)",
-                r"(?i)conclusion\s*[:\-]\s*(.+)",
-                r"(?i)findings\s*[:\-]\s*(.+)"]:
+
+    patterns = [
+        r"(?i)impression\s*[:\-]\s*(.+)",
+        r"(?i)diagnosis\s*[:\-]\s*(.+)",
+        r"(?i)conclusion\s*[:\-]\s*(.+)",
+        r"(?i)findings\s*[:\-]\s*(.+)",
+    ]
+
+    for pat in patterns:
         for m in re.finditer(pat, text or ""):
             s = m.group(1).strip()
             if s and s not in probs:
                 probs.append(s[:300])
-    if not probs:
-        lines = [l.strip() for l in (text or "").splitlines() if l.strip()]
-        keywords = ["pain","lesion","fracture","mass","infection","infarct","tear","hernia","stone",
-                    "blockage","tumor","ischemia","angina","colic"]
-        guesses = [l for l in lines if any(w in l.lower() for w in keywords)]
-        probs = list(dict.fromkeys(guesses[:3]))
-    return probs
 
-def word_hit(hay: str, needle: str) -> bool:
-    if len(needle.strip()) < 3: return False
-    return re.search(rf"\b{re.escape(needle.lower())}\b", hay) is not None
+    if probs:
+        return probs
+
+    # fallback: line heuristic
+    lines = [l.strip() for l in (text or "").splitlines() if l.strip()]
+    keywords = [
+        "pain", "lesion", "fracture", "mass", "infection", "infarct", "tear",
+        "hernia", "stone", "blockage", "tumor", "ischemia", "angina", "colic",
+    ]
+    guesses = [l for l in lines if any(w in l.lower() for w in keywords)]
+    return list(dict.fromkeys(guesses[:3]))  # top 3
+
+# -----------------------------
+# Condition / disease detection
+# -----------------------------
+def matches_keyword(text: str, keyword: str) -> bool:
+    kw = keyword.lower().strip()
+    if len(kw) < 3:
+        return False
+    return bool(re.search(rf"\b{re.escape(kw)}\b", text.lower()))
 
 def detect_conditions(text: str) -> List[Dict]:
     t = normalize_text(text)
     results = []
-    for key, meta in KB["conditions"].items():
-        hits = [kw for kw in meta["keywords"] if word_hit(t, kw)]
+
+    for key, meta in KB.get("conditions", {}).items():
+        hits = [kw for kw in meta.get("keywords", []) if matches_keyword(t, kw)]
         if hits:
             results.append({
                 "key": key,
-                "name": meta["display"],
+                "display": meta.get("display", key),
                 "hits": hits,
-                "about": meta.get("about",""),
-                "actions": meta.get("procedures",[]) or [],
-                "recovery": meta.get("recovery_recos",[]) or [],
-                "severity_rules": meta.get("severity_rules", {}) or {},
-                "cost_inr": meta.get("cost_inr", [0,0]) or [0,0],
+                "keywords": meta.get("keywords", []),
+                "severity_rules": meta.get("severity_rules", {}),
+                "procedures": meta.get("procedures", []),
+                "recovery_recos": meta.get("recovery_recos", []),
+                "cost_inr": meta.get("cost_inr", [0, 0]),
+                "about": meta.get("about", ""),
             })
+
+    # Sort by number of keyword matches
     results.sort(key=lambda x: len(x["hits"]), reverse=True)
     return results
 
-def severity_percent(text: str, cond: Dict) -> int:
+# -----------------------------
+# Severity scoring
+# -----------------------------
+def severity_score(text: str, cond: Dict) -> int:
     t = normalize_text(text)
-    disease_reds = [r.lower() for r in (cond.get("severity_rules", {}).get("red_flags", []) or [])]
-    general_reds = [r.lower() for r in (RULES.get("general_rules", {}).get("red_flags", []) or KB.get("general_red_flags", []) or [])]
-    signals = ["severe","acute","sudden","worsening","emergency","fever","syncope","vomiting","bleeding",
-               "dyspnea","chest pain","unstable","shock","collapse","sepsis","uncontrolled","hypotension","tachycardia"]
-    s = 0
-    for rf in general_reds:
-        if rf and rf in t:
-            s += 3
-    for rf in disease_reds:
-        if rf and rf in t:
-            s += 3
-    s += sum(1 for w in signals if w in t)
-    hits_boost = min(5, len(cond.get("hits", [])))
-    pct = s * 8 + hits_boost * 10
-    if len(cond.get("hits", [])) > 0 and pct < 10:
-        pct = 10
-    pct = max(0, min(95, pct))
-    if any(p in t for p in ["normal study", "within normal limits", "no acute", "normal chest x-ray", "normal chest xray"]):
-        pct = min(pct, 5)
-    return int(pct)
+    score = 0
 
-# -----------------------------
-# Bookings persistence (JSON)
-# -----------------------------
-def load_bookings() -> List[Dict[str,str]]:
-    if not os.path.exists(BOOKINGS_FILE):
-        return []
-    try:
-        with open(BOOKINGS_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data or []
-    except Exception:
-        return []
+    # General red flags from YAML
+    for rf in KB.get("general_red_flags", []):
+        if rf.lower() in t:
+            score += 10
 
-def save_bookings(rows: List[Dict[str,str]]):
-    try:
-        with open(BOOKINGS_FILE, "w", encoding="utf-8") as f:
-            json.dump(rows, f, indent=2, ensure_ascii=False)
-    except Exception:
-        pass
+    # Condition-specific red flags
+    cond_flags = cond.get("severity_rules", {}).get("red_flags", []) or []
+    for rf in cond_flags:
+        if rf.lower() in t:
+            score += 12
 
-def slot_taken(rows: List[Dict[str,str]], hospital: str, doctor: str, dt_str: str, tm_str: str) -> bool:
-    if not rows:
-        return False
-    for r in rows:
-        if r.get("hospital")==hospital and r.get("doctor")==doctor and r.get("date")==dt_str and r.get("time")==tm_str:
-            return True
-    return False
+    # Keyword density boost
+    score += min(5, len(cond.get("hits", []))) * 4
 
-def cancel_booking(booking_id: str) -> bool:
-    rows = load_bookings()
-    new_rows = [r for r in rows if r.get("booking_id") != booking_id]
-    if len(new_rows) != len(rows):
-        save_bookings(new_rows)
-        return True
-    return False
+    # Cap severity
+    score = min(score, 95)
 
-# -----------------------------
-# PDF / ICS builders
-# -----------------------------
-def build_full_pdf(entities: Dict, problems: List[str], best: Dict, city: str,
-                   hospitals: List[str], appt: Dict) -> bytes:
-    pdf = FPDF()
-    pdf.set_auto_page_break(auto=True, margin=12)
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, ascii_safe("Clinical Report Helper (Educational, India) — Full Report"), ln=True)
-    pdf.set_font("Arial", "", 11)
-    pdf.cell(0, 7, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=True)
+    # If text mentions "normal"
+    normal_markers = [
+        "normal study", "within normal limits", "no acute",
+        "normal xray", "normal chest xray", "normal chest",
+    ]
+    if any(nm in t for nm in normal_markers):
+        score = min(score, 5)
 
-    def sec(title):
-        pdf.set_font("Arial", "B", 12); pdf.ln(3); pdf.cell(0, 8, ascii_safe(title), ln=True)
-        pdf.set_font("Arial", "", 11)
+    return max(0, score)
+# Part 3/6 — Main UI: Upload, Parsing, Summary, Conditions display
+# -------------------------------------------------------------------
 
-    sec("Patient")
-    pdf.multi_cell(0, 6, ascii_safe(f"Name: {entities.get('Name','') or '—'}"))
-    pdf.multi_cell(0, 6, ascii_safe(f"Age/Sex: {entities.get('Age','') or '—'} / {entities.get('Sex','') or '—'}"))
-    pdf.multi_cell(0, 6, ascii_safe(f"City: {city or '—'}"))
-
-    sec("Issues / Impressions")
-    for p in problems or ["—"]:
-        pdf.multi_cell(0, 6, ascii_safe(f"* {p}"))
-
-    sec("Condition & Care Plan (informational)")
-    if best:
-        pdf.multi_cell(0, 6, ascii_safe(f"Likely condition: {best.get('name','—')}"))
-        pdf.multi_cell(0, 6, ascii_safe(f"About: {best.get('about','—')}"))
-        pdf.multi_cell(0, 6, ascii_safe(f"Typical procedures: {', '.join(best.get('actions', []) or best.get('procedures', []) or [])}"))
-        pdf.multi_cell(0, 6, ascii_safe(f"Immediate steps: {', '.join(best.get('actions', []) or [])}"))
-        pdf.multi_cell(0, 6, ascii_safe(f"Recovery: {' | '.join(best.get('recovery', []) or best.get('recovery_recos', []) or [])}"))
-        pdf.multi_cell(0, 6, ascii_safe(f"Severity: {best.get('severity_pct','—')}%"))
-        lo, hi = india_adjust_cost(best.get("cost_inr", [0,0]), city)
-        pdf.multi_cell(0, 6, ascii_safe(f"Estimated cost (INR): Rs {lo:,} – Rs {hi:,}"))
-        if best.get("severity_rules", {}).get("red_flags") or best.get("severity_rules", {}):
-            reds = best.get("severity_rules", {}).get("red_flags", []) or best.get("red_flags", [])
-            if reds:
-                pdf.multi_cell(0, 6, ascii_safe("Red flags:"))
-                for rf in reds:
-                    pdf.multi_cell(0, 6, ascii_safe(f"  - {rf}"))
-    else:
-        pdf.multi_cell(0, 6, ascii_safe("No condition pattern matched, or report appears normal."))
-
-    sec("Suggested Hospitals")
-    for h in hospitals or ["—"]:
-        pdf.multi_cell(0, 6, ascii_safe(f"* {h}"))
-
-    sec("Appointment Details")
-    pdf.multi_cell(0, 6, ascii_safe(f"Hospital: {appt.get('hospital','') or '—'}"))
-    pdf.multi_cell(0, 6, ascii_safe(f"Scheduled for: {appt.get('date','—')} at {appt.get('time','—')}"))
-    pdf.multi_cell(0, 6, ascii_safe(f"Phone: {appt.get('phone','—')}"))
-    pdf.multi_cell(0, 6, ascii_safe(f"Email: {appt.get('email','—')}"))
-
-    sec("Disclaimer")
-    pdf.multi_cell(0, 6, ascii_safe("Informational only — NOT a medical diagnosis. Consult a qualified clinician. "
-                                     "If red-flag symptoms are present, seek urgent care."))
-
-    return pdf.output(dest="S").encode("latin-1", "replace")
-
-def build_receipt_pdf(booking: Dict[str,str]) -> bytes:
-    pdf = FPDF()
-    pdf.set_auto_page_break(auto=True, margin=12)
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, ascii_safe("Appointment Booking Receipt"), ln=True)
-    pdf.set_font("Arial", "", 11)
-    pdf.cell(0, 7, f"Receipt ID: {booking.get('booking_id')}", ln=True)
-    pdf.cell(0, 7, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=True)
-
-    def row(k, v):
-        pdf.set_font("Arial", "B", 11); pdf.cell(55, 7, ascii_safe(k)+":")
-        pdf.set_font("Arial", "", 11); pdf.multi_cell(0, 7, ascii_safe(v))
-
-    pdf.ln(2)
-    row("Patient", booking.get("patient_name","—"))
-    row("Phone", booking.get("patient_phone","—"))
-    row("Email", booking.get("patient_email","—"))
-    row("City", booking.get("city","—"))
-    row("Hospital", booking.get("hospital","—"))
-    row("Department", booking.get("department","—"))
-    row("Doctor", booking.get("doctor","—"))
-    row("Date", booking.get("date","—"))
-    row("Time", booking.get("time","—"))
-    pdf.ln(2)
-    pdf.set_font("Arial", "", 10)
-    pdf.multi_cell(0, 6, ascii_safe("Please arrive 15 minutes early with ID and past reports. This is a confirmation of your requested slot; the hospital may call you for any changes."))
-    return pdf.output(dest="S").encode("latin-1", "replace")
-
-def build_ics(patient_name: str, city: str, hospital: str, specialist: str,
-              appt_dt: datetime) -> bytes:
-    end_dt = appt_dt + timedelta(minutes=30)
-    ics = f"""BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//Clinical Report Helper//EN
-BEGIN:VEVENT
-UID:{uuid.uuid4()}
-DTSTAMP:{datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')}
-DTSTART:{appt_dt.strftime('%Y%m%dT%H%M%S')}
-DTEND:{end_dt.strftime('%Y%m%dT%H%M%S')}
-SUMMARY:Appointment for {patient_name or 'Patient'} with {specialist} at {hospital}, {city}
-DESCRIPTION:Auto-generated from Clinical Report Helper. Bring your reports and ID.
-LOCATION:{hospital}, {city}
-END:VEVENT
-END:VCALENDAR"""
-    return ics.encode("utf-8")
-
-# -----------------------------
-# Email — flexible SMTP (basic)
-# -----------------------------
-def send_email_flexible(sender_email: str, sender_password: str,
-                        to_email: str, subject: str, body: str,
-                        attachments: List[Tuple[bytes, str, str]],
-                        bcc_self: bool,
-                        host: str, port: int, security_mode: str, timeout: int) -> Tuple[bool, str]:
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = sender_email
-    msg["To"] = to_email
-    if bcc_self:
-        msg["Bcc"] = sender_email
-    msg.set_content(body)
-
-    for data, fname, mime in attachments:
-        maintype, subtype = mime.split("/", 1)
-        msg.add_attachment(data, maintype=maintype, subtype=subtype, filename=fname)
-
-    try:
-        context = ssl.create_default_context()
-        if security_mode.startswith("STARTTLS"):
-            with smtplib.SMTP(host=host, port=port, timeout=timeout) as server:
-                server.ehlo(); server.starttls(context=context); server.ehlo()
-                server.login(sender_email, sender_password)
-                server.send_message(msg)
-        else:
-            with smtplib.SMTP_SSL(host=host, port=port, context=context, timeout=timeout) as server:
-                server.login(sender_email, sender_password)
-                server.send_message(msg)
-        return True, "Email sent."
-    except Exception as e:
-        if security_mode.startswith("STARTTLS") and port == 587:
-            try:
-                with smtplib.SMTP_SSL(host=host, port=465, context=ssl.create_default_context(), timeout=timeout) as server:
-                    server.login(sender_email, sender_password)
-                    server.send_message(msg)
-                return True, "Email sent (fallback SSL:465)."
-            except Exception as e2:
-                return False, f"Email failed on STARTTLS:587 and SSL:465.\nPrimary: {e}\nFallback: {e2}"
-        return False, f"Email failed: {e}"
-
-# -----------------------------
-# Sidebar — India city
-# -----------------------------
+# Sidebar — India city selection (from KB)
 st.sidebar.header("India Location")
 cities = [""] + list_india_cities()
-city_default_idx = cities.index("chennai") if "chennai" in cities else 0
-city = st.sidebar.selectbox("Choose your city (India)", cities, index=city_default_idx)
-st.sidebar.caption("Used for cost estimates, hospital suggestions, and booking directory.")
+default_index = cities.index("chennai") if "chennai" in cities else 0
+city = st.sidebar.selectbox("Choose your city (India)", cities, index=default_index)
+st.sidebar.caption("Used for cost estimates & hospital suggestions in India.")
 
-# Show helpful warnings/errors about YAML/PyYAML availability
+# Show YAML/PyYAML warnings up-front
 if not YAML_AVAILABLE:
-    st.error("PyYAML not installed. Add PyYAML to requirements.txt and redeploy (e.g., PyYAML==6.0.1).")
+    st.error("PyYAML is not installed. Add PyYAML to requirements.txt and redeploy (e.g., PyYAML==6.0.1).")
 elif not RULES:
-    st.warning(f"rules.yaml not found or empty at '{RULES_FILE}'. Some features (diseases/hospitals) will be unavailable.")
+    st.warning(f"rules.yaml not found or empty at '{RULES_FILE}'. Disease detection and hospitals will be limited.")
 
-# -----------------------------
-# Main UI
-# -----------------------------
+# Page header
 st.title("🩺 Clinical Report Helper (India)")
 st.write('<span class="small-muted">For education/information only. Not medical advice.</span>', unsafe_allow_html=True)
 st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
 
-colL, colR = st.columns([2,1], vertical_alignment="top")
+# Two-column layout for upload + status
+colL, colR = st.columns([2, 1], vertical_alignment="top")
 with colL:
     st.markdown('<div class="section-title">1) Upload your report</div>', unsafe_allow_html=True)
-    uploaded = st.file_uploader("Upload PDF, DOCX, or a clear image (JPG/PNG)", type=["pdf","docx","jpg","jpeg","png"])
-
+    uploaded = st.file_uploader("Upload PDF, DOCX, or a clear image (JPG/PNG)", type=["pdf", "docx", "jpg", "jpeg", "png"])
 with colR:
     st.markdown('<div class="section-title">Status</div>', unsafe_allow_html=True)
     if st.session_state.extracted_text:
@@ -573,51 +470,49 @@ with colR:
     else:
         st.info("Waiting for upload…")
 
-# Auto-run extract
+# Auto-extract when file uploaded
 if uploaded is not None:
     text, warns = extract_text_from_file(uploaded)
     st.session_state.extracted_text = text
     if warns:
         st.warning("\n".join(warns))
 
+# If we have extracted text, parse and show results
 if st.session_state.extracted_text:
-    # Parse
+    # Parse entities and problems
     ents = parse_entities(st.session_state.extracted_text)
     probs = summarize_problems(st.session_state.extracted_text)
 
-    # Normal-study guard
+    # Guard: detect if report explicitly normal
     tn = normalize_text(st.session_state.extracted_text)
     normal_markers = [
-        "normal chest x-ray", "normal chest xray", "normal chest x-ray study",
-        "no acute cardiopulmonary", "no focal consolidation", "no pleural effusion",
-        "within normal limits", "impression: normal", "impression : normal", "normal study"
+        "normal chest x-ray", "normal chest xray", "normal study",
+        "within normal limits", "no acute", "impression: normal"
     ]
-    detected = [] if any(p in tn for p in normal_markers) else detect_conditions(st.session_state.extracted_text)
+    is_normal = any(nm in tn for nm in normal_markers)
 
-    # Choose best + compute severity + INR cost by city
-    best = None
+    detected = [] if is_normal else detect_conditions(st.session_state.extracted_text)
+
+    # Build alternatives with severity% and cost by city
     alts = []
+    best = None
     if detected:
-        for c in detected:
-            sev_pct = severity_percent(st.session_state.extracted_text, c)
-            lo, hi = india_adjust_cost(c["cost_inr"], city)
-            # normalize keys for templates
-            normalized = {
-                "key": c["key"] if "key" in c else c.get("key", ""),
-                "name": c["name"],
-                "hits": c.get("hits", []),
-                "about": c.get("about", ""),
-                "actions": c.get("actions", []) or c.get("procedures", []),
-                "recovery": c.get("recovery", []) or c.get("recovery_recos", []),
-                "red_flags": c.get("severity_rules", {}).get("red_flags", []) if c.get("severity_rules", {}) else c.get("red_flags", []),
-                "specialist": c.get("specialist", ""),
-                "surgeries": c.get("surgeries", []) or c.get("actions", []),
-                "cost_inr": c.get("cost_inr", [0,0]),
-                "severity_pct": sev_pct,
+        for d in detected:
+            pct = severity_score(st.session_state.extracted_text, d)
+            lo, hi = india_adjust_cost(d.get("cost_inr", [0, 0]), city)
+            alts.append({
+                "key": d.get("key", d.get("display", "")).lower(),
+                "name": d.get("display", d.get("name", "")),
+                "hits": d.get("hits", []),
+                "about": d.get("about", ""),
+                "procedures": d.get("procedures", []) or d.get("actions", []),
+                "recovery_recos": d.get("recovery_recos", []) or d.get("recovery", []),
+                "severity_rules": d.get("severity_rules", {}),
+                "cost_inr": d.get("cost_inr", [0, 0]),
+                "severity_pct": pct,
                 "cost_low": lo,
-                "cost_high": hi,
-            }
-            alts.append(normalized)
+                "cost_high": hi
+            })
         alts.sort(key=lambda x: (len(x.get("hits", [])), x.get("severity_pct", 0)), reverse=True)
         best = alts[0]
         st.session_state.alt_conditions = alts[1:]
@@ -627,32 +522,30 @@ if st.session_state.extracted_text:
     st.session_state.entities = ents
     st.session_state.problems = probs
     st.session_state.best_condition = best
-    st.session_state.hospitals = [h.get("name","") for h in nearby_hospitals(city)]
+    st.session_state.hospitals = [h.get("name", "") for h in nearby_hospitals(city)]
 
     # ---------- 2) Patient summary ----------
     st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
     st.markdown('<div class="section-title">2) Patient summary</div>', unsafe_allow_html=True)
     c1, c2 = st.columns([1.2, 2], vertical_alignment="top")
-
     with c1:
         df_patient = pd.DataFrame([
-            ["Name", ents.get("Name","") or "—"],
-            ["Age",  ents.get("Age","") or "—"],
-            ["Sex",  ents.get("Sex","") or "—"],
+            ["Name", ents.get("Name", "") or "—"],
+            ["Age", ents.get("Age", "") or "—"],
+            ["Sex", ents.get("Sex", "") or "—"],
             ["City (India)", city or "—"],
         ], columns=["Field", "Value"])
         st.table(df_patient)
-
     with c2:
         df_probs = pd.DataFrame({"Problem / Impression": st.session_state.problems or ["—"]})
         st.dataframe(df_probs, use_container_width=True)
 
-    # ---------- 3) Condition & plan ----------
+    # ---------- 3) Condition & care plan ----------
     st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
     st.markdown('<div class="section-title">3) Condition & care plan (informational)</div>', unsafe_allow_html=True)
 
     if best:
-        pct = best["severity_pct"]
+        pct = best.get("severity_pct", 0)
         sev_color = "#047857" if pct < 34 else ("#b45309" if pct < 67 else "#b91c1c")
         st.markdown(
             f'<div class="card"><span class="sev-tag" style="background:#f3f4f6;color:{sev_color};">Severity: {pct}%</span></div>',
@@ -660,162 +553,422 @@ if st.session_state.extracted_text:
         )
 
         df_cond = pd.DataFrame([
-            ["Likely condition", best["name"]],
-            ["About", best.get("about","")],
-            ["What to do now", " ; ".join(best.get("actions") or [])],
-            ["Recovery (typical)", " | ".join(best.get("recovery") or [])],
-            ["Typical surgeries/procedures", ", ".join(best.get("surgeries") or [])],
-            ["Estimated cost (INR)", f"₹{best['cost_low']:,} – ₹{best['cost_high']:,}"],
+            ["Likely condition", best.get("name", "—")],
+            ["About", best.get("about", "")],
+            ["What to do now", " ; ".join(best.get("procedures", []))],
+            ["Recovery (typical)", " | ".join(best.get("recovery_recos", []))],
+            ["Estimated cost (INR)", f"₹{best.get('cost_low',0):,} – ₹{best.get('cost_high',0):,}"],
         ], columns=["Item", "Details"])
         st.table(df_cond)
 
-        if best.get("red_flags"):
-            st.info("Red flags: " + " | ".join(best.get("red_flags")))
+        if best.get("severity_rules", {}).get("red_flags"):
+            st.info("Red flags: " + " | ".join(best.get("severity_rules", {}).get("red_flags")))
     else:
-        st.warning("No specific condition pattern matched. If your report says 'Normal', this can be expected. Otherwise, consult a clinician for personalized advice.")
-
-    # ---------- 4) Hospitals ----------
-    st.markdown('<div class="section-title">4) Suggested hospitals (India)</div>', unsafe_allow_html=True)
-    st.dataframe(pd.DataFrame({"Hospitals": st.session_state.hospitals or ["—"]}), use_container_width=True)
-
-    # ---------- 5) Appointment Booking ----------
-    st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">5) Hospital Appointment Booking</div>', unsafe_allow_html=True)
-
-    hosp_dir = nearby_hospitals(city)
-    if not hosp_dir:
-        st.info("Select a city with hospitals in the sidebar to enable booking.")
-    else:
-        # Choose hospital
-        hospital_names = [h.get("name","") for h in hosp_dir]
-        h_idx = st.selectbox("Choose a hospital", list(range(len(hospital_names))),
-                             format_func=lambda i: hospital_names[i])
-        chosen_h = hosp_dir[h_idx]
-        hospital_name = chosen_h.get("name","")
-        hospital_email = chosen_h.get("email","")
-
-        # Choose department (suggest from condition)
-        suggested_dept = None
-        if best:
-            spec = best.get("name","").lower()
-            if "card" in spec or "coronary" in spec: suggested_dept = "Cardiology"
-            elif "urolog" in spec or "renal" in spec or "stone" in spec: suggested_dept = "Urology"
-            elif "spine" in spec or "neuro" in spec: suggested_dept = "Spine/Neuro"
-            elif "ent" in spec or "sinus" in spec: suggested_dept = "ENT"
-            elif "cataract" in spec or "ophth" in spec: suggested_dept = "Ophthalmology"
-            elif "orth" in spec or "acl" in spec: suggested_dept = "Orthopaedics"
-            elif "append" in spec or "hernia" in spec or "gall" in spec: suggested_dept = "General Surgery"
-
-        dept_names = list(chosen_h.get("departments", {}).keys())
-        if suggested_dept in dept_names:
-            dept_default = dept_names.index(suggested_dept)
+        if is_normal:
+            st.success("Report appears normal / no acute findings detected.")
         else:
-            dept_default = 0 if dept_names else 0
-        department = st.selectbox("Department", dept_names or ["General"], index=dept_default)
-        doctors = chosen_h.get("departments", {}).get(department, ["Duty Doctor"])
-        doctor = st.selectbox("Doctor", doctors)
+            st.warning("No specific condition pattern matched. If your report says 'Normal', this can be expected. Otherwise, consult a clinician for personalized advice.")
 
-        # Slot picker (next 14 days, 09:00–17:00, 30-min)
-        rows = load_bookings()
-        colA, colB = st.columns(2)
-        with colA:
-            appt_date = st.date_input("Choose date", value=date.today(), min_value=date.today(), max_value=date.today()+timedelta(days=14))
-        with colB:
-            # build slot list
-            slots = []
-            start_dt = datetime.combine(appt_date, time(9, 0))
-            end_dt = datetime.combine(appt_date, time(17, 0))
-            cur = start_dt
-            while cur < end_dt:
-                slots.append(cur.strftime("%H:%M"))
-                cur += timedelta(minutes=30)
+    # Show alternative matches (if any)
+    if st.session_state.alt_conditions:
+        with st.expander(f"Alternative matches ({len(st.session_state.alt_conditions)})"):
+            for alt in st.session_state.alt_conditions:
+                st.write(f"**{alt.get('name')}** — Severity: {alt.get('severity_pct')}% — Hits: {', '.join(alt.get('hits', []))}")
+                st.write(alt.get("about", ""))
+                st.markdown("---")
 
-            # remove taken
-            free_slots = [s for s in slots if not slot_taken(rows, hospital_name, doctor, str(appt_date), s)]
-            appt_time = st.selectbox("Available time", free_slots or ["No slots available"])
+    # Continue to Part 4 (Hospital booking UI)
+# End of Part 3/6
+# Part 4/6 — Hospital Suggestions + Appointment Helper + Email Draft
+# -------------------------------------------------------------------
 
-        # Patient details
-        colP1, colP2, colP3 = st.columns(3)
-        with colP1:
-            patient_name = st.text_input("Patient name", value=ents.get("Name",""))
-        with colP2:
-            patient_phone = st.text_input("Phone (optional)")
-        with colP3:
-            patient_email = st.text_input("Email (optional)")
+    # ---------- 4) Suggested hospitals ----------
+    st.markdown('<div class="section-title">4) Suggested hospitals (India)</div>', unsafe_allow_html=True)
 
-        # Confirm booking
-        if st.button("✅ Confirm Booking"):
-            if not free_slots or appt_time not in free_slots:
-                st.error("Selected time is not available.")
-            else:
-                booking_id = str(uuid.uuid4())[:8]
-                new_row = {
-                    "booking_id": booking_id,
-                    "patient_name": patient_name,
-                    "patient_phone": patient_phone,
-                    "patient_email": patient_email,
-                    "city": city,
-                    "hospital": hospital_name,
-                    "department": department,
-                    "doctor": doctor,
-                    "date": str(appt_date),
-                    "time": appt_time
-                }
-                rows.append(new_row)
-                save_bookings(rows)
+    hospitals_list = st.session_state.hospitals or ["—"]
+    df_hospitals = pd.DataFrame({"Hospitals": hospitals_list})
+    st.dataframe(df_hospitals, use_container_width=True)
 
-                st.success(f"Booked! ID: {booking_id}")
-                # Build receipt PDF + ICS
-                receipt_pdf = build_receipt_pdf(new_row)
-                st.session_state.receipt_pdf_bytes = receipt_pdf
-
-                spec = department
-                appt_dt = datetime.combine(appt_date, datetime.strptime(appt_time, "%H:%M").time())
-                ics_bytes = build_ics(patient_name, city, hospital_name, spec, appt_dt)
-                st.session_state.latest_ics_bytes = ics_bytes
-
-                st.download_button("⬇️ Download Booking Receipt (PDF)",
-                                   data=receipt_pdf, file_name=f"booking_{booking_id}.pdf", mime="application/pdf")
-                st.download_button("⬇️ Add to Calendar (.ics)",
-                                   data=ics_bytes, file_name=f"booking_{booking_id}.ics", mime="text/calendar")
-
-                st.info("Use the Email section below to email the hospital with attachments.")
-
-    # ---------- 6) Full report (original feature) ----------
+    # ---------- 5) Appointment Helper ----------
     st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">6) Full report download</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">5) Appointment helper</div>', unsafe_allow_html=True)
 
-    appt_info = {"hospital": st.session_state.hospitals[0] if st.session_state.hospitals else "",
-                 "date": "", "time": "", "phone": "", "email": ""}
-    full_pdf = build_full_pdf(
-        st.session_state.entities,
-        st.session_state.problems,
-        st.session_state.best_condition,
-        city,
-        st.session_state.hospitals,
-        appt_info
+    colA, colB = st.columns(2)
+
+    with colA:
+        patient_name = st.text_input("Your name (for email)", value=ents.get("Name", ""))
+        appt_date = st.date_input("Preferred date", date.today())
+        appt_time = st.time_input("Preferred time", time(10, 0))
+
+    with colB:
+        hospital_sel = st.selectbox("Choose a hospital", hospitals_list)
+        patient_phone = st.text_input("Phone (optional)")
+        patient_email = st.text_input("Email (optional)")
+
+    # Pick specialist name
+    if best:
+        specialist = best.get("name", "Specialist")
+    else:
+        specialist = "Relevant Specialist"
+
+    # Generate booking email text
+    email_lines = [
+        f"Subject: Appointment Request — {specialist}",
+        "",
+        "Dear Scheduling Team,",
+        "",
+        f"My name is {patient_name or 'Patient'}. I would like to book an appointment at {hospital_sel or 'your hospital'}.",
+        "",
+        "Summary:",
+    ]
+
+    # Report highlights
+    if probs:
+        email_lines.append("• Report highlights: " + "; ".join(probs[:3]))
+    if best:
+        email_lines.append(f"• Possible condition (non-diagnostic): {best.get('name')}")
+
+    email_lines.append(f"• Preferred slot: {appt_date} at {appt_time}")
+
+    # Contact
+    if patient_phone:
+        email_lines.append(f"• Phone: {patient_phone}")
+    if patient_email:
+        email_lines.append(f"• Email: {patient_email}")
+
+    email_lines += [
+        "",
+        "I can share my reports if required.",
+        "",
+        "Thank you,",
+        f"{patient_name or 'Patient'}"
+    ]
+
+    booking_email = "\n".join(email_lines)
+
+    # Display email
+    st.code(booking_email)
+
+    # Prepare appointment datetime
+    from datetime import datetime as dt
+    appt_dt = dt.combine(appt_date, appt_time)
+
+    # For ICS creation later
+    st.session_state.latest_appointment_dt = appt_dt
+    st.session_state.latest_hospital = hospital_sel
+    st.session_state.latest_patient_name = patient_name
+    st.session_state.latest_patient_email = patient_email
+    st.session_state.latest_patient_phone = patient_phone
+    st.session_state.latest_email_draft = booking_email
+# Part 5/6 — PDF Builder + ICS Calendar File + Downloads
+# -------------------------------------------------------------------
+
+    st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">6) Download Full Report (PDF)</div>', unsafe_allow_html=True)
+
+    # --------------------------
+    # PDF BUILDER
+    # --------------------------
+    from fpdf import FPDF
+
+    def build_full_pdf(entities, problems, best, city, hospitals, appointment_dt):
+        pdf = FPDF()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.add_page()
+
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "Clinical Report Helper (India) — Summary", ln=True)
+
+        pdf.set_font("Arial", "", 11)
+        pdf.cell(0, 7, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=True)
+
+        # -------------------- Patient --------------------
+        pdf.ln(4)
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 8, "Patient Details", ln=True)
+        pdf.set_font("Arial", "", 11)
+
+        pdf.cell(0, 6, f"Name: {entities.get('Name', '—')}", ln=True)
+        pdf.cell(0, 6, f"Age: {entities.get('Age', '—')}", ln=True)
+        pdf.cell(0, 6, f"Sex: {entities.get('Sex', '—')}", ln=True)
+        pdf.cell(0, 6, f"City: {city or '—'}", ln=True)
+
+        # -------------------- Problems --------------------
+        pdf.ln(4)
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 8, "Problems / Impressions", ln=True)
+        pdf.set_font("Arial", "", 11)
+
+        if problems:
+            for p in problems:
+                pdf.multi_cell(0, 6, f"- {p}")
+        else:
+            pdf.cell(0, 6, "—", ln=True)
+
+        # -------------------- Condition --------------------
+        pdf.ln(4)
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 8, "Likely Condition (Informational Only)", ln=True)
+        pdf.set_font("Arial", "", 11)
+
+        if best:
+            pdf.multi_cell(0, 6, f"Name: {best.get('name')}")
+            pdf.multi_cell(0, 6, f"About: {best.get('about')}")
+            pdf.multi_cell(0, 6, f"Severity: {best.get('severity_pct', 0)}%")
+            pdf.multi_cell(0, 6, f"Procedures: {', '.join(best.get('procedures', []))}")
+            pdf.multi_cell(0, 6, f"Recovery: {', '.join(best.get('recovery_recos', []))}")
+            lo, hi = india_adjust_cost(best.get('cost_inr', [0, 0]), city)
+            pdf.multi_cell(0, 6, f"Estimated Cost (INR): Rs {lo:,} – Rs {hi:,}")
+        else:
+            pdf.multi_cell(0, 6, "No condition detected or normal scan.")
+
+        # -------------------- Hospitals --------------------
+        pdf.ln(4)
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 8, "Suggested Hospitals", ln=True)
+        pdf.set_font("Arial", "", 11)
+
+        for h in hospitals or []:
+            pdf.multi_cell(0, 6, f"- {h}")
+
+        # -------------------- Appointment --------------------
+        pdf.ln(4)
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 8, "Preferred Appointment", ln=True)
+        pdf.set_font("Arial", "", 11)
+
+        if appointment_dt:
+            pdf.multi_cell(0, 6, f"Requested for: {appointment_dt.strftime('%Y-%m-%d %H:%M')}")
+        else:
+            pdf.multi_cell(0, 6, "Not specified")
+
+        # -------------------- Footer --------------------
+        pdf.ln(4)
+        pdf.set_font("Arial", "", 10)
+        pdf.multi_cell(0, 6, "Disclaimer: This is for educational and informational purposes only. "
+                             "Not a medical device. Consult a qualified clinician.")
+
+        return pdf.output(dest="S").encode("latin-1", "replace")
+
+
+    # Generate PDF bytes
+    full_pdf_bytes = build_full_pdf(
+        entities=st.session_state.entities,
+        problems=st.session_state.probs,
+        best=st.session_state.best_condition,
+        city=city,
+        hospitals=st.session_state.hospitals,
+        appointment_dt=st.session_state.latest_appointment_dt,
     )
-    st.session_state.latest_pdf_bytes = full_pdf
+    st.session_state.latest_pdf_bytes = full_pdf_bytes
 
-    st.download_button("⬇️ Download Full Report (PDF)",
-                       data=full_pdf, file_name="clinical_full_report.pdf", mime="application/pdf")
+    # Download button
+    st.download_button(
+        label="⬇️ Download Full Report (PDF)",
+        data=full_pdf_bytes,
+        file_name="clinical_report.pdf",
+        mime="application/pdf"
+    )
 
-    # ---------- Email booking / confirmation ----------
+    # --------------------------
+    # ICS BUILDER (Calendar file)
+    # --------------------------
+    def build_ics(patient_name, hospital, city, dt_obj):
+        if not dt_obj:
+            return ""
+
+        end_time = dt_obj + timedelta(minutes=30)
+
+        ics = f"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Clinical Report Helper//EN
+BEGIN:VEVENT
+UID:{uuid.uuid4()}
+DTSTAMP:{datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')}
+DTSTART:{dt_obj.strftime('%Y%m%dT%H%M%S')}
+DTEND:{end_time.strftime('%Y%m%dT%H%M%S')}
+SUMMARY:Appointment for {patient_name} at {hospital}
+DESCRIPTION:Auto-generated appointment reminder.
+LOCATION:{hospital}, {city}
+END:VEVENT
+END:VCALENDAR"""
+        return ics.encode("utf-8")
+
+    ics_bytes = build_ics(
+        st.session_state.latest_patient_name,
+        st.session_state.latest_hospital,
+        city,
+        st.session_state.latest_appointment_dt
+    )
+    st.session_state.latest_ics_bytes = ics_bytes
+
+    st.download_button(
+        label="📅 Add to Calendar (.ics)",
+        data=ics_bytes,
+        file_name="appointment.ics",
+        mime="text/calendar"
+    )
+# Part 6/6 — Booking persistence, Email sending, My Bookings, Footer
+# -------------------------------------------------------------------
+
+    # -----------------------------
+    # Booking persistence (JSON)
+    # -----------------------------
+    def load_bookings() -> List[Dict[str, str]]:
+        if not os.path.exists(BOOKINGS_FILE):
+            return []
+        try:
+            with open(BOOKINGS_FILE, "r", encoding="utf-8") as f:
+                rows = json.load(f)
+                return rows or []
+        except Exception:
+            return []
+
+    def save_bookings(rows: List[Dict[str, str]]):
+        try:
+            with open(BOOKINGS_FILE, "w", encoding="utf-8") as f:
+                json.dump(rows, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            st.warning(f"Failed to save booking: {e}")
+
+    # -----------------------------
+    # Receipt PDF builder (simple)
+    # -----------------------------
+    def build_receipt_pdf(booking: Dict[str, str]) -> bytes:
+        pdf = FPDF()
+        pdf.set_auto_page_break(auto=True, margin=12)
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "Appointment Booking Receipt", ln=True)
+        pdf.set_font("Arial", "", 11)
+        pdf.cell(0, 7, f"Booking ID: {booking.get('booking_id','')}", ln=True)
+        pdf.cell(0, 7, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=True)
+        pdf.ln(4)
+        for k in ["patient_name", "patient_phone", "patient_email", "city", "hospital", "department", "date", "time"]:
+            pdf.set_font("Arial", "B", 11)
+            pdf.cell(50, 7, f"{k.replace('_',' ').title()}:")
+            pdf.set_font("Arial", "", 11)
+            pdf.multi_cell(0, 7, str(booking.get(k, "—")))
+        pdf.ln(4)
+        pdf.set_font("Arial", "", 10)
+        pdf.multi_cell(0, 6, "Please arrive 15 minutes early with your ID and past reports. This is a confirmation of your requested slot.")
+        return pdf.output(dest="S").encode("latin-1", "replace")
+
+    # -----------------------------
+    # Confirm booking (save + receipt)
+    # -----------------------------
+    if st.button("✅ Confirm Booking"):
+        # gather fields (fall back to session values)
+        b_patient_name = patient_name or st.session_state.entities.get("Name", "") or st.session_state.latest_patient_name or "Patient"
+        b_phone = patient_phone or st.session_state.latest_patient_phone or ""
+        b_email = patient_email or st.session_state.latest_patient_email or ""
+        b_city = city or ""
+        b_hospital = hospital_sel or st.session_state.latest_hospital or ""
+        b_department = best.get("name") if best else "General"
+        b_date = str(appt_date)
+        b_time = str(appt_time)
+
+        # create booking record
+        booking_id = str(uuid.uuid4())[:8]
+        booking = {
+            "booking_id": booking_id,
+            "patient_name": b_patient_name,
+            "patient_phone": b_phone,
+            "patient_email": b_email,
+            "city": b_city,
+            "hospital": b_hospital,
+            "department": b_department,
+            "date": b_date,
+            "time": b_time
+        }
+
+        rows = load_bookings()
+        rows.append(booking)
+        save_bookings(rows)
+
+        # Build receipt + ICS
+        receipt_bytes = build_receipt_pdf(booking)
+        st.session_state.receipt_pdf_bytes = receipt_bytes
+
+        appt_dt_local = st.session_state.latest_appointment_dt or datetime.combine(appt_date, appt_time)
+        ics_bytes_book = build_ics(b_patient_name, b_hospital, b_city, appt_dt_local)
+        st.session_state.latest_ics_bytes = ics_bytes_book
+
+        st.success(f"Booking confirmed — ID: {booking_id}")
+        st.download_button("⬇️ Download Booking Receipt (PDF)", data=receipt_bytes,
+                           file_name=f"booking_{booking_id}.pdf", mime="application/pdf")
+        st.download_button("📅 Add booking to Calendar (.ics)", data=ics_bytes_book,
+                           file_name=f"booking_{booking_id}.ics", mime="text/calendar")
+        st.info("Use the email section below to email the hospital with attachments.")
+
+    # -----------------------------
+    # Flexible email sender function
+    # -----------------------------
+    def send_email_flexible(sender_email: str, sender_password: str,
+                            to_email: str, subject: str, body: str,
+                            attachments: List[Tuple[bytes, str, str]],
+                            bcc_self: bool, host: str, port: int, security_mode: str, timeout: int) -> Tuple[bool, str]:
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = sender_email
+        msg["To"] = to_email
+        if bcc_self:
+            msg["Bcc"] = sender_email
+        msg.set_content(body)
+
+        for data, fname, mime in attachments:
+            if not data:
+                continue
+            maintype, subtype = mime.split("/", 1)
+            msg.add_attachment(data, maintype=maintype, subtype=subtype, filename=fname)
+
+        try:
+            context = ssl.create_default_context()
+            if security_mode.startswith("STARTTLS"):
+                with smtplib.SMTP(host=host, port=port, timeout=timeout) as server:
+                    server.ehlo(); server.starttls(context=context); server.ehlo()
+                    server.login(sender_email, sender_password)
+                    server.send_message(msg)
+            else:
+                with smtplib.SMTP_SSL(host=host, port=port, context=context, timeout=timeout) as server:
+                    server.login(sender_email, sender_password)
+                    server.send_message(msg)
+            return True, "Email sent."
+        except Exception as e:
+            # fallback attempt for STARTTLS on 587 -> SSL 465
+            if security_mode.startswith("STARTTLS") and port == 587:
+                try:
+                    with smtplib.SMTP_SSL(host=host, port=465, context=ssl.create_default_context(), timeout=timeout) as server:
+                        server.login(sender_email, sender_password)
+                        server.send_message(msg)
+                    return True, "Email sent (fallback SSL:465)."
+                except Exception as e2:
+                    return False, f"Email failed on STARTTLS:587 and SSL:465. Primary: {e}; Fallback: {e2}"
+            return False, f"Email failed: {e}"
+
+    # -----------------------------
+    # Email section UI
+    # -----------------------------
     st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
     st.markdown('<div class="section-title">Email booking / confirmation</div>', unsafe_allow_html=True)
 
     colE1, colE2 = st.columns(2)
     with colE1:
-        sender_email = st.text_input("Your email (SMTP user) e.g. yourname@gmail.com")
-        sender_pass  = st.text_input("App password / SMTP password", type="password")
+        sender_email_input = st.text_input("Your email (SMTP user) e.g. yourname@gmail.com")
+        sender_pass_input = st.text_input("App password / SMTP password", type="password")
         send_copy_to_me = st.checkbox("Send me a copy (BCC)", value=True)
     with colE2:
-        # Try to use chosen hospital email if booking section was used
-        fallback_email = ""
-        if hosp_dir:
-            fallback_email = hosp_dir[0].get("email","")
-        hospital_email = st.text_input("Hospital / Recipient email", value=fallback_email)
-        email_subject  = st.text_input("Email subject", value="Appointment Booking Request")
+        # default hospital email: try to pick from YAML hospital entry
+        fallback = ""
+        try:
+            # find hospital object
+            for h in nearby_hospitals(city):
+                if h.get("name") == hospital_sel:
+                    fallback = h.get("email", "") or fallback
+        except Exception:
+            fallback = ""
+        hospital_recipient = st.text_input("Hospital / Recipient email", value=fallback)
+        email_subject = st.text_input("Email subject", value=f"Appointment request — {best.get('name') if best else 'Booking'}")
 
     with st.expander("Advanced SMTP settings"):
         smtp_host = st.text_input("SMTP host", value="smtp.gmail.com")
@@ -823,33 +976,35 @@ if st.session_state.extracted_text:
         security = st.selectbox("Security", ["STARTTLS (recommended, port 587)", "SSL/TLS (port 465)"])
         smtp_timeout = st.number_input("Timeout (seconds)", min_value=5, max_value=120, value=25)
 
-    # Compose email body
-    body_lines = ["Dear Scheduling Team,", ""]
-    if len(st.session_state.problems) > 0:
-        body_lines.append("Report highlights: " + "; ".join(st.session_state.problems[:3]))
+    # Compose email body (default)
+    email_body_lines = ["Dear Scheduling Team,", ""]
+    if st.session_state.problems:
+        email_body_lines.append("Report highlights: " + "; ".join(st.session_state.problems[:3]))
     if st.session_state.best_condition:
-        body_lines.append(f"Possible condition (non-diagnostic): {st.session_state.best_condition.get('name')} "
-                          f"| Severity: {st.session_state.best_condition.get('severity_pct')}%")
-    body_lines.append("Please find attached a booking receipt (if I booked a slot) and my clinical summary.")
-    body_lines += ["", "Thank you,", st.session_state.entities.get("Name","Patient") or "Patient"]
-    email_body = "\n".join(body_lines)
+        email_body_lines.append(f"Possible condition (non-diagnostic): {st.session_state.best_condition.get('name')} | Severity: {st.session_state.best_condition.get('severity_pct')}%")
+    email_body_lines.append("")
+    email_body_lines.append("Please find attached my clinical summary and booking receipt (if applicable).")
+    email_body_lines += ["", "Thank you,", st.session_state.entities.get("Name", "Patient") or "Patient"]
+    email_body = "\n".join(email_body_lines)
     st.code(email_body)
 
-    # Attachments: include receipt if exists, full report always, ICS if exists
-    attachments = [(full_pdf, "clinical_full_report.pdf", "application/pdf")]
+    # attachments: full report + optional receipt + optional ics
+    attachments = []
+    if st.session_state.latest_pdf_bytes:
+        attachments.append((st.session_state.latest_pdf_bytes, "clinical_report.pdf", "application/pdf"))
     if st.session_state.receipt_pdf_bytes:
         attachments.append((st.session_state.receipt_pdf_bytes, "booking_receipt.pdf", "application/pdf"))
     if st.session_state.latest_ics_bytes:
         attachments.append((st.session_state.latest_ics_bytes, "appointment.ics", "text/calendar"))
 
     if st.button("📧 Send Email with Attachments"):
-        if not (sender_email and sender_pass and hospital_email):
-            st.error("Please fill: Your email, password, and Hospital email.")
+        if not (sender_email_input and sender_pass_input and hospital_recipient):
+            st.error("Please fill: Your email, your SMTP password, and recipient email.")
         else:
             ok, msg = send_email_flexible(
-                sender_email=sender_email,
-                sender_password=sender_pass,
-                to_email=hospital_email,
+                sender_email=sender_email_input,
+                sender_password=sender_pass_input,
+                to_email=hospital_recipient,
                 subject=email_subject,
                 body=email_body,
                 attachments=attachments,
@@ -859,29 +1014,44 @@ if st.session_state.extracted_text:
                 security_mode=security,
                 timeout=int(smtp_timeout),
             )
-            st.success(msg) if ok else st.error(msg)
+            if ok:
+                st.success(msg)
+            else:
+                st.error(msg)
 
-# ---------- My Bookings (Persisted) ----------
+# -----------------------------
+# My Bookings (outside the extracted-text branch)
+# -----------------------------
 st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
 st.markdown('<div class="section-title">My Bookings</div>', unsafe_allow_html=True)
 
-df_all = load_bookings()
-if not df_all:
+all_rows = load_bookings()
+if not all_rows:
     st.info("No bookings yet.")
 else:
-    st.dataframe(pd.DataFrame(df_all), use_container_width=True)
-    # Cancel controls
-    cancel_id = st.text_input("Enter Booking ID to cancel")
+    df_display = pd.DataFrame(all_rows)
+    st.dataframe(df_display, use_container_width=True)
+
+    cancel_id_input = st.text_input("Enter Booking ID to cancel")
     if st.button("Cancel Booking"):
-        if cancel_id.strip():
-            ok = cancel_booking(cancel_id.strip())
-            if ok:
-                st.success("Booking cancelled.")
-            else:
-                st.error("Booking ID not found.")
-        else:
+        if not cancel_id_input.strip():
             st.error("Please enter a Booking ID.")
+        else:
+            removed = cancel_booking(cancel_id_input.strip()) if 'cancel_booking' in globals() else None
+            # define a local cancel if not provided
+            if removed is None:
+                # implement cancel here
+                rows = load_bookings()
+                new_rows = [r for r in rows if r.get("booking_id") != cancel_id_input.strip()]
+                if len(new_rows) != len(rows):
+                    save_bookings(new_rows)
+                    st.success("Booking cancelled.")
+                else:
+                    st.error("Booking ID not found.")
+            else:
+                st.success("Booking cancelled.")
 
 # Footer
 st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
 st.caption("© 2025 — For education/information only. Not a medical device; not medical advice.")
+# End of Part 6/6
