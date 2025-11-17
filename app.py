@@ -663,151 +663,142 @@ if st.session_state.extracted_text:
 # Part 5/6 — PDF Builder + ICS Calendar File + Downloads
 # -------------------------------------------------------------------
 
-    st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">6) Download Full Report (PDF)</div>', unsafe_allow_html=True)
+# ------------ PDF Builder ------------
+def build_full_pdf(entities, problems, best, city, hospitals, appointment_dt):
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=12)
+    pdf.add_page()
 
-    # --------------------------
-    # PDF BUILDER
-    # --------------------------
-    from fpdf import FPDF
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "Clinical Report Helper — Full Report (India)", ln=True)
 
-    def build_full_pdf(entities, problems, best, city, hospitals, appointment_dt):
-        pdf = FPDF()
-        pdf.set_auto_page_break(auto=True, margin=15)
-        pdf.add_page()
+    pdf.set_font("Arial", "", 11)
+    pdf.cell(0, 7, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=True)
 
-        pdf.set_font("Arial", "B", 14)
-        pdf.cell(0, 10, "Clinical Report Helper (India) — Summary", ln=True)
-
-        pdf.set_font("Arial", "", 11)
-        pdf.cell(0, 7, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=True)
-
-        # -------------------- Patient --------------------
+    # Sections
+    def section(title):
         pdf.ln(4)
         pdf.set_font("Arial", "B", 12)
-        pdf.cell(0, 8, "Patient Details", ln=True)
+        pdf.cell(0, 8, title, ln=True)
         pdf.set_font("Arial", "", 11)
 
-        pdf.cell(0, 6, f"Name: {entities.get('Name', '—')}", ln=True)
-        pdf.cell(0, 6, f"Age: {entities.get('Age', '—')}", ln=True)
-        pdf.cell(0, 6, f"Sex: {entities.get('Sex', '—')}", ln=True)
-        pdf.cell(0, 6, f"City: {city or '—'}", ln=True)
+    # Patient section
+    section("Patient Details")
+    pdf.multi_cell(0, 6, f"Name: {entities.get('Name','—')}")
+    pdf.multi_cell(0, 6, f"Age: {entities.get('Age','—')}")
+    pdf.multi_cell(0, 6, f"Sex: {entities.get('Sex','—')}")
+    pdf.multi_cell(0, 6, f"City: {city or '—'}")
 
-        # -------------------- Problems --------------------
-        pdf.ln(4)
-        pdf.set_font("Arial", "B", 12)
-        pdf.cell(0, 8, "Problems / Impressions", ln=True)
-        pdf.set_font("Arial", "", 11)
+    # Problems
+    section("Issues / Impressions")
+    if problems:
+        for p in problems:
+            pdf.multi_cell(0, 6, f"* {p}")
+    else:
+        pdf.multi_cell(0, 6, "—")
 
-        if problems:
-            for p in problems:
-                pdf.multi_cell(0, 6, f"- {p}")
-        else:
-            pdf.cell(0, 6, "—", ln=True)
+    # Condition section
+    section("Condition & Plan")
+    if best:
+        pdf.multi_cell(0, 6, f"Likely Condition: {best['name']}")
+        pdf.multi_cell(0, 6, f"About: {best.get('about','')}")
+        pdf.multi_cell(0, 6, f"Specialist: {best.get('specialist','')}")
+        pdf.multi_cell(0, 6, f"Immediate Steps: {', '.join(best.get('actions', []))}")
+        pdf.multi_cell(0, 6, f"Recovery: {', '.join(best.get('recovery', []))}")
+        pdf.multi_cell(0, 6, f"Severity Score: {best.get('severity_pct',0)}%")
+        pdf.multi_cell(0, 6, f"Estimated Cost (INR): Rs {best.get('cost_low',0):,} – {best.get('cost_high',0):,}")
+    else:
+        pdf.multi_cell(0, 6, "No specific condition detected.")
 
-        # -------------------- Condition --------------------
-        pdf.ln(4)
-        pdf.set_font("Arial", "B", 12)
-        pdf.cell(0, 8, "Likely Condition (Informational Only)", ln=True)
-        pdf.set_font("Arial", "", 11)
-
-        if best:
-            pdf.multi_cell(0, 6, f"Name: {best.get('name')}")
-            pdf.multi_cell(0, 6, f"About: {best.get('about')}")
-            pdf.multi_cell(0, 6, f"Severity: {best.get('severity_pct', 0)}%")
-            pdf.multi_cell(0, 6, f"Procedures: {', '.join(best.get('procedures', []))}")
-            pdf.multi_cell(0, 6, f"Recovery: {', '.join(best.get('recovery_recos', []))}")
-            lo, hi = india_adjust_cost(best.get('cost_inr', [0, 0]), city)
-            pdf.multi_cell(0, 6, f"Estimated Cost (INR): Rs {lo:,} – Rs {hi:,}")
-        else:
-            pdf.multi_cell(0, 6, "No condition detected or normal scan.")
-
-        # -------------------- Hospitals --------------------
-        pdf.ln(4)
-        pdf.set_font("Arial", "B", 12)
-        pdf.cell(0, 8, "Suggested Hospitals", ln=True)
-        pdf.set_font("Arial", "", 11)
-
-        for h in hospitals or []:
+    # Hospitals
+    section("Suggested Hospitals")
+    if hospitals:
+        for h in hospitals:
             pdf.multi_cell(0, 6, f"- {h}")
+    else:
+        pdf.multi_cell(0, 6, "—")
 
-        # -------------------- Appointment --------------------
-        pdf.ln(4)
-        pdf.set_font("Arial", "B", 12)
-        pdf.cell(0, 8, "Preferred Appointment", ln=True)
-        pdf.set_font("Arial", "", 11)
+    # Appointment
+    section("Appointment (Requested)")
+    if appointment_dt:
+        pdf.multi_cell(0, 6, f"Preferred Slot: {appointment_dt}")
+    else:
+        pdf.multi_cell(0, 6, "—")
 
-        if appointment_dt:
-            pdf.multi_cell(0, 6, f"Requested for: {appointment_dt.strftime('%Y-%m-%d %H:%M')}")
-        else:
-            pdf.multi_cell(0, 6, "Not specified")
+    # Disclaimer
+    section("Disclaimer")
+    pdf.multi_cell(0, 6, "Informational only — not a medical diagnosis. Consult a clinician.")
 
-        # -------------------- Footer --------------------
-        pdf.ln(4)
-        pdf.set_font("Arial", "", 10)
-        pdf.multi_cell(0, 6, "Disclaimer: This is for educational and informational purposes only. "
-                             "Not a medical device. Consult a qualified clinician.")
-
-        return pdf.output(dest="S").encode("latin-1", "replace")
+    return pdf.output(dest="S").encode("latin-1", "replace")
 
 
-    # Generate PDF bytes
-    full_pdf_bytes = build_full_pdf(
-        entities=st.session_state.entities,
-        problems=st.session_state.probs,
-        best=st.session_state.best_condition,
-        city=city,
-        hospitals=st.session_state.hospitals,
-        appointment_dt=st.session_state.latest_appointment_dt,
-    )
-    st.session_state.latest_pdf_bytes = full_pdf_bytes
+# ------------ ICS Calendar Builder ------------
+def build_ics(patient, hospital, city, dt_value):
+    if not dt_value:
+        return b""
 
-    # Download button
-    st.download_button(
-        label="⬇️ Download Full Report (PDF)",
-        data=full_pdf_bytes,
-        file_name="clinical_report.pdf",
-        mime="application/pdf"
-    )
+    dt_start = dt_value.strftime("%Y%m%dT%H%M%S")
+    dt_end = (dt_value + timedelta(minutes=30)).strftime("%Y%m%dT%H%M%S")
 
-    # --------------------------
-    # ICS BUILDER (Calendar file)
-    # --------------------------
-    def build_ics(patient_name, hospital, city, dt_obj):
-        if not dt_obj:
-            return ""
-
-        end_time = dt_obj + timedelta(minutes=30)
-
-        ics = f"""BEGIN:VCALENDAR
+    ics_text = f"""BEGIN:VCALENDAR
 VERSION:2.0
-PRODID:-//Clinical Report Helper//EN
+PRODID:-//ClinicalHelper//EN
 BEGIN:VEVENT
 UID:{uuid.uuid4()}
 DTSTAMP:{datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')}
-DTSTART:{dt_obj.strftime('%Y%m%dT%H%M%S')}
-DTEND:{end_time.strftime('%Y%m%dT%H%M%S')}
-SUMMARY:Appointment for {patient_name} at {hospital}
-DESCRIPTION:Auto-generated appointment reminder.
+DTSTART:{dt_start}
+DTEND:{dt_end}
+SUMMARY:Appointment for {patient} at {hospital}
+DESCRIPTION:Generated by Clinical Report Helper
 LOCATION:{hospital}, {city}
 END:VEVENT
-END:VCALENDAR"""
-        return ics.encode("utf-8")
+END:VCALENDAR
+"""
+    return ics_text.encode("utf-8")
 
-    ics_bytes = build_ics(
-        st.session_state.latest_patient_name,
-        st.session_state.latest_hospital,
-        city,
-        st.session_state.latest_appointment_dt
-    )
-    st.session_state.latest_ics_bytes = ics_bytes
 
+# ------------ Generate Full Report (PDF + ICS) ------------
+st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
+st.markdown('<div class="section-title">6) Download Full Report (PDF)</div>', unsafe_allow_html=True)
+
+# Build full PDF
+full_pdf_bytes = build_full_pdf(
+    entities=st.session_state.entities,
+    problems=st.session_state.problems,    # <-- FIXED
+    best=st.session_state.best_condition,
+    city=city,
+    hospitals=st.session_state.hospitals,
+    appointment_dt=st.session_state.latest_appointment_dt
+)
+
+st.session_state.latest_pdf_bytes = full_pdf_bytes
+
+# Download PDF button
+st.download_button(
+    "⬇️ Download Full Report (PDF)",
+    data=full_pdf_bytes,
+    file_name="clinical_full_report.pdf",
+    mime="application/pdf"
+)
+
+# Build ICS
+ics_bytes = build_ics(
+    patient=st.session_state.entities.get("Name", "Patient"),
+    hospital=st.session_state.latest_hospital,
+    city=city,
+    dt_value=st.session_state.latest_appointment_dt
+)
+
+st.session_state.latest_ics_bytes = ics_bytes
+
+if ics_bytes:
     st.download_button(
-        label="📅 Add to Calendar (.ics)",
+        "📅 Download Appointment (.ics)",
         data=ics_bytes,
         file_name="appointment.ics",
         mime="text/calendar"
     )
+
 # Part 6/6 — Booking persistence, Email sending, My Bookings, Footer
 # -------------------------------------------------------------------
 
