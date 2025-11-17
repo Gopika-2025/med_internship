@@ -1,17 +1,11 @@
 # app.py
 # -------------------------------------------------------------------
-# Clinical Report Helper (Educational, India) — YAML-driven version
-# - Loads rules (diseases, cities, hospitals, cost modifiers) from rules.yaml
-# - Upload (PDF/DOCX/Image) → instant tables (no button)
-# - Extract Name/Age/Sex/Problems
-# - Detect likely condition (rule-based, YAML)
-# - Show About, What to do, Recovery, Severity % (uses YAML severity rules)
-# - City list & hospitals loaded from rules.yaml
-# - Hospital Appointment Booking System (directory, doctors, slot picker)
-# - Persist bookings to bookings.json (+ cancel), show "My Bookings"
-# - Full Report PDF + Booking Receipt PDF + .ics calendar
-# - Flexible SMTP email (attach PDFs + .ics)
-# IMPORTANT: Informational only. Not a medical device; Not medical advice.
+# Clinical Report Helper (YAML-driven, full feature set)
+# - Loads rules (diseases, general red flags, cities, hospitals) from rules.yaml
+# - Upload PDF/DOCX/IMAGE -> extract text (OCR optional) -> detect conditions
+# - Booking system uses hospitals from rules.yaml (stores bookings in bookings.json)
+# - Builds Full Report PDF, Booking Receipt PDF, .ics; flexible SMTP email
+# - Informational only — not medical advice.
 # -------------------------------------------------------------------
 
 import streamlit as st
@@ -24,7 +18,7 @@ import pdfplumber
 import docx2txt
 from PIL import Image
 
-# Safe optional OCR import
+# Optional OCR import
 try:
     import pytesseract
     OCR_AVAILABLE = True
@@ -35,7 +29,7 @@ from fpdf import FPDF
 import smtplib, ssl
 from email.message import EmailMessage
 
-# YAML loading
+# YAML loader (optional)
 try:
     import yaml
     YAML_AVAILABLE = True
@@ -67,7 +61,7 @@ st.markdown("""
 # -----------------------------
 # Session defaults
 # -----------------------------
-defaults = {
+for k, v in {
     "extracted_text": "",
     "entities": {},
     "problems": [],
@@ -78,15 +72,15 @@ defaults = {
     "latest_pdf_bytes": b"",
     "latest_ics_bytes": b"",
     "receipt_pdf_bytes": b"",
-}
-for k, v in defaults.items():
+}.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
 # -----------------------------
-# Load rules.yaml (diseases + cities + general_rules)
+# Helpers: load YAML -> normalize into internal KB
 # -----------------------------
-def load_rules(path: str) -> Dict[str, Any]:
+def load_rules_yaml(path: str) -> Dict[str, Any]:
+    """Load rules.yaml if available. Return empty dict on failure."""
     if not YAML_AVAILABLE:
         return {}
     if not os.path.exists(path):
@@ -98,51 +92,142 @@ def load_rules(path: str) -> Dict[str, Any]:
     except Exception:
         return {}
 
-RULES = load_rules(RULES_FILE)
-if not YAML_AVAILABLE:
-    st.error("PyYAML (yaml) not installed. Install with `pip install PyYAML` and restart the app.")
-if not RULES:
-    st.warning(f"rules.yaml not found or empty at '{RULES_FILE}'. Please add rules.yaml next to app.py.")
-# Provide convenient access with defaults
-GENERAL_RULES = RULES.get("general_rules", {})
-DISEASES = RULES.get("diseases", []) or []
-CITIES = RULES.get("cities", {}) or {}
+def normalize_city_key(k: str) -> str:
+    return (k or "").strip().lower()
+
+def build_internal_kb(rules: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Take the YAML structure (rules) and convert to a normalized internal KB dict:
+    {
+      "city_cost_modifiers": {...},
+      "hospitals": { city_key: [ {name, email, departments: {dept: [doctors]}} ] },
+      "conditions": { cond_key: {display, keywords, severity_rules, procedures, recovery_recos, cost_inr, about} }
+    }
+    """
+    kb = {
+        "city_cost_modifiers": {},
+        "hospitals": {},
+        "conditions": {}
+    }
+
+    # city cost modifiers - YAML may provide a 'cities' mapping
+    cities = rules.get("cities", {})
+    for c, v in (cities.items() if isinstance(cities, dict) else []):
+        try:
+            kb["city_cost_modifiers"][normalize_city_key(c)] = float(v.get("cost_modifier", v) if isinstance(v, dict) else v)
+        except Exception:
+            try:
+                kb["city_cost_modifiers"][normalize_city_key(c)] = float(v)
+            except Exception:
+                pass
+
+    # fallback default modifier
+    if "default" not in kb["city_cost_modifiers"]:
+        kb["city_cost_modifiers"]["default"] = 1.0
+
+    # hospitals - rules may have 'hospitals' key where each city contains list of hospitals
+    hospitals_root = rules.get("hospitals", {}) or {}
+    for city_name, hlist in hospitals_root.items():
+        ck = normalize_city_key(city_name)
+        kb["hospitals"][ck] = []
+        if not isinstance(hlist, list):
+            continue
+        for h in hlist:
+            name = h.get("name", "")
+            email = h.get("email", "")
+            departments = h.get("departments", {}) or {}
+            # ensure departments maps to lists
+            dept_clean = {}
+            for dname, docs in departments.items():
+                if isinstance(docs, list):
+                    dept_clean[dname] = docs
+                else:
+                    # if single string
+                    dept_clean[dname] = [docs]
+            kb["hospitals"][ck].append({"name": name, "email": email, "departments": dept_clean})
+
+    # If YAML had a top-level 'cities' which included hospitals nested, include them too
+    for city_name, cinfo in (cities.items() if isinstance(cities, dict) else []):
+        ck = normalize_city_key(city_name)
+        if isinstance(cinfo, dict) and "hospitals" in cinfo:
+            kb.setdefault("hospitals", {}).setdefault(ck, [])
+            for h in cinfo.get("hospitals", []) or []:
+                name = h.get("name", "")
+                email = h.get("email", "")
+                departments = h.get("departments", {}) or {}
+                dept_clean = {}
+                for dname, docs in departments.items():
+                    if isinstance(docs, list):
+                        dept_clean[dname] = docs
+                    else:
+                        dept_clean[dname] = [docs]
+                kb["hospitals"][ck].append({"name": name, "email": email, "departments": dept_clean})
+            # load cost modifier if present
+            cm = cinfo.get("cost_modifier")
+            if cm is not None:
+                try:
+                    kb["city_cost_modifiers"][ck] = float(cm)
+                except Exception:
+                    pass
+
+    # conditions/diseases
+    diseases = rules.get("diseases", []) or []
+    for d in diseases:
+        name = d.get("name", "unknown").strip()
+        # key: normalized
+        key = re.sub(r"\s+", "_", name.lower())
+        kb["conditions"][key] = {
+            "display": name,
+            "keywords": d.get("keywords", []) or [],
+            "severity_rules": d.get("severity_rules", {}) or {},
+            "procedures": d.get("procedures", []) or [],
+            "recovery_recos": d.get("recovery_recos", []) or [],
+            "cost_inr": d.get("cost_inr", [0,0]) or [0,0],
+            "about": d.get("about", "") or ""
+        }
+
+    # general_rules handling: red_flags can be in general_rules
+    general_rules = rules.get("general_rules", {}) or {}
+    kb["general_red_flags"] = general_rules.get("red_flags", []) or []
+
+    # ensure defaults
+    kb["city_cost_modifiers"].setdefault("default", 1.0)
+    if "default" not in kb["hospitals"]:
+        kb["hospitals"].setdefault("default", [{"name": "Accredited tertiary center near you", "email": "", "departments": {"General": ["Duty Doctor"]}}])
+
+    return kb
+
+# Load YAML -> build KB
+RULES = load_rules_yaml(RULES_FILE)
+KB = build_internal_kb(RULES)
 
 # -----------------------------
-# Utilities
+# Utilities that use KB
 # -----------------------------
 def normalize_text(t: str) -> str:
     return re.sub(r"\s+", " ", t or "").strip().lower()
 
 def list_india_cities() -> List[str]:
-    ks = sorted([k for k in CITIES.keys() if k and k != "default"])
-    return ks
+    ks = [k for k in KB["hospitals"].keys() if k != "default"]
+    return sorted(ks)
 
 def india_adjust_cost(base: List[int], city: str) -> Tuple[int, int]:
     if not base or len(base) != 2:
         return (0, 0)
-    cm = 1.0
-    if city:
-        city_key = (city or "").strip().lower()
-        if city_key in CITIES and isinstance(CITIES[city_key].get("cost_modifier"), (int, float)):
-            cm = float(CITIES[city_key]["cost_modifier"])
-        else:
-            # fallback to default if present
-            default = CITIES.get("default", {})
-            cm = float(default.get("cost_modifier", 1.0))
-    else:
-        cm = float(CITIES.get("default", {}).get("cost_modifier", 1.0))
-    return (int(base[0]*cm), int(base[1]*cm))
+    m = KB["city_cost_modifiers"].get(normalize_city_key(city), KB["city_cost_modifiers"]["default"])
+    return (int(base[0]*m), int(base[1]*m))
 
-def nearby_hospitals(city: str) -> List[Dict[str, Any]]:
-    if not city:
-        return CITIES.get("default", {}).get("hospitals", [])
-    return CITIES.get((city or "").strip().lower(), CITIES.get("default", {})).get("hospitals", [])
+def nearby_hospitals(city: str) -> List[Dict[str,Any]]:
+    return KB["hospitals"].get(normalize_city_key(city), KB["hospitals"]["default"])
 
 def ascii_safe(s: str) -> str:
     if not s:
         return ""
-    table = {"’": "'", "‘": "'", "“": '"', "”": '"', "–": "-", "—": "-", "•": "*", "…": "...", "₹": "Rs ", "\u00a0": " "}
+    table = {
+        "’": "'", "‘": "'", "“": '"', "”": '"',
+        "–": "-", "—": "-", "•": "*", "…": "...", "₹": "Rs ",
+        "\u00a0": " ",
+    }
     out = str(s)
     for k, v in table.items():
         out = out.replace(k, v)
@@ -159,7 +244,6 @@ def extract_text_from_file(uploaded) -> Tuple[str, List[str]]:
         name = ""
     data = uploaded.read()
 
-    # PDF
     if name.endswith(".pdf"):
         try:
             text = ""
@@ -170,7 +254,6 @@ def extract_text_from_file(uploaded) -> Tuple[str, List[str]]:
         except Exception as e:
             return "", [f"PDF read error: {e}"]
 
-    # DOCX
     if name.endswith(".docx"):
         try:
             buf = io.BytesIO(data)
@@ -178,24 +261,22 @@ def extract_text_from_file(uploaded) -> Tuple[str, List[str]]:
         except Exception as e:
             return "", [f"DOCX read error: {e}"]
 
-    # IMAGE -> OCR
     try:
         im = Image.open(io.BytesIO(data)).convert("RGB")
         if OCR_AVAILABLE:
             try:
-                text = pytesseract.image_to_string(im)
-                return text or "", warnings
+                return (pytesseract.image_to_string(im) or ""), warnings
             except Exception as e:
                 warnings.append(f"OCR failed: {e}")
                 return "", warnings
         else:
-            warnings.append("OCR not available. Install pytesseract + system Tesseract to enable image OCR.")
+            warnings.append("OCR not available. Install pytesseract + Tesseract for image OCR.")
             return "", warnings
     except Exception:
-        return "", ["Unsupported file. Upload PDF / DOCX / JPG / PNG."]
+        return "", ["Unsupported file. Upload PDF/DOCX/JPG/PNG."]
 
 # -----------------------------
-# Parsing & detection (YAML-driven)
+# Parsing & detection
 # -----------------------------
 def parse_entities(text: str) -> Dict[str, Any]:
     ents: Dict[str, Any] = {}
@@ -219,60 +300,55 @@ def summarize_problems(text: str) -> List[str]:
                 probs.append(s[:300])
     if not probs:
         lines = [l.strip() for l in (text or "").splitlines() if l.strip()]
-        keywords = ["pain","lesion","fracture","mass","infection","infarct","tear","hernia","stone","blockage","tumor","ischemia","angina","colic"]
+        keywords = ["pain","lesion","fracture","mass","infection","infarct","tear","hernia","stone",
+                    "blockage","tumor","ischemia","angina","colic"]
         guesses = [l for l in lines if any(w in l.lower() for w in keywords)]
         probs = list(dict.fromkeys(guesses[:3]))
     return probs
 
 def word_hit(hay: str, needle: str) -> bool:
-    if not needle or len(needle.strip()) < 2:
-        return False
+    if len(needle.strip()) < 3: return False
     return re.search(rf"\b{re.escape(needle.lower())}\b", hay) is not None
 
 def detect_conditions(text: str) -> List[Dict]:
     t = normalize_text(text)
     results = []
-    for d in DISEASES:
-        kws = d.get("keywords", []) or []
-        hits = [kw for kw in kws if word_hit(t, kw)]
+    for key, meta in KB["conditions"].items():
+        hits = [kw for kw in meta["keywords"] if word_hit(t, kw)]
         if hits:
             results.append({
-                "name": d.get("name"),
+                "key": key,
+                "name": meta["display"],
                 "hits": hits,
-                "about": d.get("about", ""),
-                "procedures": d.get("procedures", []),
-                "recovery_recos": d.get("recovery_recos", []),
-                "severity_rules": d.get("severity_rules", {}),
-                "cost_inr": d.get("cost_inr", [0,0])
+                "about": meta.get("about",""),
+                "actions": meta.get("procedures",[]) or [],
+                "recovery": meta.get("recovery_recos",[]) or [],
+                "severity_rules": meta.get("severity_rules", {}) or {},
+                "cost_inr": meta.get("cost_inr", [0,0]) or [0,0],
             })
     results.sort(key=lambda x: len(x["hits"]), reverse=True)
     return results
 
 def severity_percent(text: str, cond: Dict) -> int:
     t = normalize_text(text)
-    # disease-specific red flags from YAML
     disease_reds = [r.lower() for r in (cond.get("severity_rules", {}).get("red_flags", []) or [])]
-    general_reds = [r.lower() for r in (GENERAL_RULES.get("red_flags", []) or [])]
-    signals = ["severe","acute","sudden","worsening","emergency","fever","syncope","vomiting","bleeding","dyspnea","chest pain","unstable","shock","collapse","sepsis","uncontrolled","hypotension","tachycardia"]
+    general_reds = [r.lower() for r in (RULES.get("general_rules", {}).get("red_flags", []) or KB.get("general_red_flags", []) or [])]
+    signals = ["severe","acute","sudden","worsening","emergency","fever","syncope","vomiting","bleeding",
+               "dyspnea","chest pain","unstable","shock","collapse","sepsis","uncontrolled","hypotension","tachycardia"]
     s = 0
-    # count general red flags
     for rf in general_reds:
         if rf and rf in t:
             s += 3
-    # count disease red flags
     for rf in disease_reds:
         if rf and rf in t:
             s += 3
-    # count signal words
     s += sum(1 for w in signals if w in t)
-    # boost by number of keyword hits
     hits_boost = min(5, len(cond.get("hits", [])))
     pct = s * 8 + hits_boost * 10
     if len(cond.get("hits", [])) > 0 and pct < 10:
         pct = 10
     pct = max(0, min(95, pct))
-    # If text suggests normal exam reduce
-    if any(p in t for p in ["normal study", "within normal limits", "no acute", "impression: normal", "normal chest xray", "normal study"]):
+    if any(p in t for p in ["normal study", "within normal limits", "no acute", "normal chest x-ray", "normal chest xray"]):
         pct = min(pct, 5)
     return int(pct)
 
@@ -340,14 +416,20 @@ def build_full_pdf(entities: Dict, problems: List[str], best: Dict, city: str,
 
     sec("Condition & Care Plan (informational)")
     if best:
-        pdf.multi_cell(0, 6, ascii_safe(f"Likely condition: {best['name']}"))
+        pdf.multi_cell(0, 6, ascii_safe(f"Likely condition: {best.get('name','—')}"))
         pdf.multi_cell(0, 6, ascii_safe(f"About: {best.get('about','—')}"))
-        pdf.multi_cell(0, 6, ascii_safe(f"Typical procedures: {', '.join(best.get('procedures', []) or [])}"))
-        pdf.multi_cell(0, 6, ascii_safe(f"Immediate steps: {', '.join(best.get('procedures', []) or [])}"))
-        pdf.multi_cell(0, 6, ascii_safe(f"Recovery: {' | '.join(best.get('recovery_recos', []) or [])}"))
+        pdf.multi_cell(0, 6, ascii_safe(f"Typical procedures: {', '.join(best.get('actions', []) or best.get('procedures', []) or [])}"))
+        pdf.multi_cell(0, 6, ascii_safe(f"Immediate steps: {', '.join(best.get('actions', []) or [])}"))
+        pdf.multi_cell(0, 6, ascii_safe(f"Recovery: {' | '.join(best.get('recovery', []) or best.get('recovery_recos', []) or [])}"))
         pdf.multi_cell(0, 6, ascii_safe(f"Severity: {best.get('severity_pct','—')}%"))
         lo, hi = india_adjust_cost(best.get("cost_inr", [0,0]), city)
         pdf.multi_cell(0, 6, ascii_safe(f"Estimated cost (INR): Rs {lo:,} – Rs {hi:,}"))
+        if best.get("severity_rules", {}).get("red_flags") or best.get("severity_rules", {}):
+            reds = best.get("severity_rules", {}).get("red_flags", []) or best.get("red_flags", [])
+            if reds:
+                pdf.multi_cell(0, 6, ascii_safe("Red flags:"))
+                for rf in reds:
+                    pdf.multi_cell(0, 6, ascii_safe(f"  - {rf}"))
     else:
         pdf.multi_cell(0, 6, ascii_safe("No condition pattern matched, or report appears normal."))
 
@@ -362,7 +444,9 @@ def build_full_pdf(entities: Dict, problems: List[str], best: Dict, city: str,
     pdf.multi_cell(0, 6, ascii_safe(f"Email: {appt.get('email','—')}"))
 
     sec("Disclaimer")
-    pdf.multi_cell(0, 6, ascii_safe("Informational only — NOT a medical diagnosis. Consult a qualified clinician."))
+    pdf.multi_cell(0, 6, ascii_safe("Informational only — NOT a medical diagnosis. Consult a qualified clinician. "
+                                     "If red-flag symptoms are present, seek urgent care."))
+
     return pdf.output(dest="S").encode("latin-1", "replace")
 
 def build_receipt_pdf(booking: Dict[str,str]) -> bytes:
@@ -413,7 +497,7 @@ END:VCALENDAR"""
     return ics.encode("utf-8")
 
 # -----------------------------
-# Email — flexible SMTP
+# Email — flexible SMTP (basic)
 # -----------------------------
 def send_email_flexible(sender_email: str, sender_password: str,
                         to_email: str, subject: str, body: str,
@@ -460,8 +544,15 @@ def send_email_flexible(sender_email: str, sender_password: str,
 # -----------------------------
 st.sidebar.header("India Location")
 cities = [""] + list_india_cities()
-city = st.sidebar.selectbox("Choose your city (India)", cities, index=(cities.index("chennai") if "chennai" in cities else 0))
+city_default_idx = cities.index("chennai") if "chennai" in cities else 0
+city = st.sidebar.selectbox("Choose your city (India)", cities, index=city_default_idx)
 st.sidebar.caption("Used for cost estimates, hospital suggestions, and booking directory.")
+
+# Show helpful warnings/errors about YAML/PyYAML availability
+if not YAML_AVAILABLE:
+    st.error("PyYAML not installed. Add PyYAML to requirements.txt and redeploy (e.g., PyYAML==6.0.1).")
+elif not RULES:
+    st.warning(f"rules.yaml not found or empty at '{RULES_FILE}'. Some features (diseases/hospitals) will be unavailable.")
 
 # -----------------------------
 # Main UI
@@ -471,7 +562,6 @@ st.write('<span class="small-muted">For education/information only. Not medical 
 st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
 
 colL, colR = st.columns([2,1], vertical_alignment="top")
-
 with colL:
     st.markdown('<div class="section-title">1) Upload your report</div>', unsafe_allow_html=True)
     uploaded = st.file_uploader("Upload PDF, DOCX, or a clear image (JPG/PNG)", type=["pdf","docx","jpg","jpeg","png"])
@@ -491,10 +581,11 @@ if uploaded is not None:
         st.warning("\n".join(warns))
 
 if st.session_state.extracted_text:
-    # Parse & detect
+    # Parse
     ents = parse_entities(st.session_state.extracted_text)
     probs = summarize_problems(st.session_state.extracted_text)
 
+    # Normal-study guard
     tn = normalize_text(st.session_state.extracted_text)
     normal_markers = [
         "normal chest x-ray", "normal chest xray", "normal chest x-ray study",
@@ -503,16 +594,30 @@ if st.session_state.extracted_text:
     ]
     detected = [] if any(p in tn for p in normal_markers) else detect_conditions(st.session_state.extracted_text)
 
+    # Choose best + compute severity + INR cost by city
     best = None
     alts = []
     if detected:
         for c in detected:
             sev_pct = severity_percent(st.session_state.extracted_text, c)
-            lo, hi = india_adjust_cost(c.get("cost_inr", [0,0]), city)
-            c["severity_pct"] = sev_pct
-            c["cost_low"] = lo
-            c["cost_high"] = hi
-            alts.append(c)
+            lo, hi = india_adjust_cost(c["cost_inr"], city)
+            # normalize keys for templates
+            normalized = {
+                "key": c["key"] if "key" in c else c.get("key", ""),
+                "name": c["name"],
+                "hits": c.get("hits", []),
+                "about": c.get("about", ""),
+                "actions": c.get("actions", []) or c.get("procedures", []),
+                "recovery": c.get("recovery", []) or c.get("recovery_recos", []),
+                "red_flags": c.get("severity_rules", {}).get("red_flags", []) if c.get("severity_rules", {}) else c.get("red_flags", []),
+                "specialist": c.get("specialist", ""),
+                "surgeries": c.get("surgeries", []) or c.get("actions", []),
+                "cost_inr": c.get("cost_inr", [0,0]),
+                "severity_pct": sev_pct,
+                "cost_low": lo,
+                "cost_high": hi,
+            }
+            alts.append(normalized)
         alts.sort(key=lambda x: (len(x.get("hits", [])), x.get("severity_pct", 0)), reverse=True)
         best = alts[0]
         st.session_state.alt_conditions = alts[1:]
@@ -522,11 +627,7 @@ if st.session_state.extracted_text:
     st.session_state.entities = ents
     st.session_state.problems = probs
     st.session_state.best_condition = best
-
-    # Hospitals list (names only for display block)
-    hosp_objs = nearby_hospitals(city)
-    hospitals_list = [h.get("name","") for h in hosp_objs]
-    st.session_state.hospitals = hospitals_list
+    st.session_state.hospitals = [h.get("name","") for h in nearby_hospitals(city)]
 
     # ---------- 2) Patient summary ----------
     st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
@@ -551,20 +652,25 @@ if st.session_state.extracted_text:
     st.markdown('<div class="section-title">3) Condition & care plan (informational)</div>', unsafe_allow_html=True)
 
     if best:
-        pct = best.get("severity_pct", 0)
+        pct = best["severity_pct"]
         sev_color = "#047857" if pct < 34 else ("#b45309" if pct < 67 else "#b91c1c")
         st.markdown(
             f'<div class="card"><span class="sev-tag" style="background:#f3f4f6;color:{sev_color};">Severity: {pct}%</span></div>',
             unsafe_allow_html=True
         )
+
         df_cond = pd.DataFrame([
-            ["Likely condition", best.get("name")],
+            ["Likely condition", best["name"]],
             ["About", best.get("about","")],
-            ["What to do now", " ; ".join(best.get("procedures", []) or [])],
-            ["Recovery (typical)", " | ".join(best.get("recovery_recos", []) or [])],
-            ["Estimated cost (INR)", f"₹{best.get('cost_low',0):,} – ₹{best.get('cost_high',0):,}"],
+            ["What to do now", " ; ".join(best.get("actions") or [])],
+            ["Recovery (typical)", " | ".join(best.get("recovery") or [])],
+            ["Typical surgeries/procedures", ", ".join(best.get("surgeries") or [])],
+            ["Estimated cost (INR)", f"₹{best['cost_low']:,} – ₹{best['cost_high']:,}"],
         ], columns=["Item", "Details"])
         st.table(df_cond)
+
+        if best.get("red_flags"):
+            st.info("Red flags: " + " | ".join(best.get("red_flags")))
     else:
         st.warning("No specific condition pattern matched. If your report says 'Normal', this can be expected. Otherwise, consult a clinician for personalized advice.")
 
@@ -572,11 +678,11 @@ if st.session_state.extracted_text:
     st.markdown('<div class="section-title">4) Suggested hospitals (India)</div>', unsafe_allow_html=True)
     st.dataframe(pd.DataFrame({"Hospitals": st.session_state.hospitals or ["—"]}), use_container_width=True)
 
-    # ---------- 5) Appointment Booking System ----------
+    # ---------- 5) Appointment Booking ----------
     st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
     st.markdown('<div class="section-title">5) Hospital Appointment Booking</div>', unsafe_allow_html=True)
 
-    hosp_dir = hosp_objs or CITIES.get("default", {}).get("hospitals", [])
+    hosp_dir = nearby_hospitals(city)
     if not hosp_dir:
         st.info("Select a city with hospitals in the sidebar to enable booking.")
     else:
@@ -591,15 +697,14 @@ if st.session_state.extracted_text:
         # Choose department (suggest from condition)
         suggested_dept = None
         if best:
-            spec = (best.get("name","") or "").lower()
-            # naive mapping by name keywords in disease name
+            spec = best.get("name","").lower()
             if "card" in spec or "coronary" in spec: suggested_dept = "Cardiology"
             elif "urolog" in spec or "renal" in spec or "stone" in spec: suggested_dept = "Urology"
             elif "spine" in spec or "neuro" in spec: suggested_dept = "Spine/Neuro"
             elif "ent" in spec or "sinus" in spec: suggested_dept = "ENT"
-            elif "ophth" in spec or "cataract" in spec: suggested_dept = "Ophthalmology"
-            elif "orth" in spec or "acl" in spec or "fracture" in spec: suggested_dept = "Orthopaedics"
-            elif "append" in spec or "hernia" in spec or "gall" in spec or "general" in spec: suggested_dept = "General Surgery"
+            elif "cataract" in spec or "ophth" in spec: suggested_dept = "Ophthalmology"
+            elif "orth" in spec or "acl" in spec: suggested_dept = "Orthopaedics"
+            elif "append" in spec or "hernia" in spec or "gall" in spec: suggested_dept = "General Surgery"
 
         dept_names = list(chosen_h.get("departments", {}).keys())
         if suggested_dept in dept_names:
@@ -676,11 +781,11 @@ if st.session_state.extracted_text:
 
                 st.info("Use the Email section below to email the hospital with attachments.")
 
-    # ---------- 6) Full Report (original feature) ----------
+    # ---------- 6) Full report (original feature) ----------
     st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
     st.markdown('<div class="section-title">6) Full report download</div>', unsafe_allow_html=True)
 
-    appt_info = {"hospital": hospitals_list[0] if hospitals_list else "",
+    appt_info = {"hospital": st.session_state.hospitals[0] if st.session_state.hospitals else "",
                  "date": "", "time": "", "phone": "", "email": ""}
     full_pdf = build_full_pdf(
         st.session_state.entities,
@@ -705,6 +810,7 @@ if st.session_state.extracted_text:
         sender_pass  = st.text_input("App password / SMTP password", type="password")
         send_copy_to_me = st.checkbox("Send me a copy (BCC)", value=True)
     with colE2:
+        # Try to use chosen hospital email if booking section was used
         fallback_email = ""
         if hosp_dir:
             fallback_email = hosp_dir[0].get("email","")
@@ -722,7 +828,8 @@ if st.session_state.extracted_text:
     if len(st.session_state.problems) > 0:
         body_lines.append("Report highlights: " + "; ".join(st.session_state.problems[:3]))
     if st.session_state.best_condition:
-        body_lines.append(f"Possible condition (non-diagnostic): {st.session_state.best_condition.get('name')} | Severity: {st.session_state.best_condition.get('severity_pct')}%")
+        body_lines.append(f"Possible condition (non-diagnostic): {st.session_state.best_condition.get('name')} "
+                          f"| Severity: {st.session_state.best_condition.get('severity_pct')}%")
     body_lines.append("Please find attached a booking receipt (if I booked a slot) and my clinical summary.")
     body_lines += ["", "Thank you,", st.session_state.entities.get("Name","Patient") or "Patient"]
     email_body = "\n".join(body_lines)
@@ -758,11 +865,11 @@ if st.session_state.extracted_text:
 st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
 st.markdown('<div class="section-title">My Bookings</div>', unsafe_allow_html=True)
 
-all_rows = load_bookings()
-if not all_rows:
+df_all = load_bookings()
+if not df_all:
     st.info("No bookings yet.")
 else:
-    st.dataframe(pd.DataFrame(all_rows), use_container_width=True)
+    st.dataframe(pd.DataFrame(df_all), use_container_width=True)
     # Cancel controls
     cancel_id = st.text_input("Enter Booking ID to cancel")
     if st.button("Cancel Booking"):
