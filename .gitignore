@@ -1,12 +1,21 @@
-# Ignore virtual environments and temp files
-venv/
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*_tmp_*
-*.pdf
-*.pkl
+.venv/
+venv/
+env/
+
+# OS
 .DS_Store
-.idea/
+Thumbs.db
+
+# Streamlit & app artifacts
+bookings.csv
+*.pdf
+*.ics
+
+# IDE
 .vscode/
+.idea/
