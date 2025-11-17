@@ -1,17 +1,11 @@
 # app.py
 # -------------------------------------------------------------------
-# Clinical Report Helper (Educational, India) — YAML-driven version
-# - Loads rules (diseases, cities, hospitals, cost modifiers) from rules.yaml
-# - Upload (PDF/DOCX/Image) → instant tables (no button)
-# - Extract Name/Age/Sex/Problems
-# - Detect likely condition (rule-based, YAML)
-# - Show About, What to do, Recovery, Severity % (uses YAML severity rules)
-# - City list & hospitals loaded from rules.yaml
-# - Hospital Appointment Booking System (directory, doctors, slot picker)
-# - Persist bookings to bookings.json (+ cancel), show "My Bookings"
-# - Full Report PDF + Booking Receipt PDF + .ics calendar
-# - Flexible SMTP email (attach PDFs + .ics)
-# IMPORTANT: Informational only. Not a medical device; Not medical advice.
+# Clinical Report Helper (YAML-driven)
+# - Loads rules (diseases, general red flags, cities, hospitals) from rules.yaml
+# - Upload PDF/DOCX/IMAGE -> extract text (OCR optional) -> detect conditions
+# - Booking system uses hospitals from rules.yaml (stores bookings in bookings.json)
+# - Builds Full Report PDF, Booking Receipt PDF, .ics; flexible SMTP email
+# - Informational only — not medical advice.
 # -------------------------------------------------------------------
 
 import streamlit as st
@@ -35,7 +29,7 @@ from fpdf import FPDF
 import smtplib, ssl
 from email.message import EmailMessage
 
-# YAML loading
+# YAML loader
 try:
     import yaml
     YAML_AVAILABLE = True
@@ -47,7 +41,7 @@ RULES_FILE = "rules.yaml"
 BOOKINGS_FILE = "bookings.json"
 
 # -----------------------------
-# Page & minimal styling
+# Page & styling
 # -----------------------------
 st.set_page_config(page_title="Clinical Report Helper (India)", page_icon="🩺", layout="wide")
 st.markdown("""
@@ -55,12 +49,8 @@ st.markdown("""
 .small-muted {color:#6b7280;font-size:12px;}
 .card {border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin-top:8px;}
 .section-title {font-weight:600;font-size:18px;margin-top:8px;margin-bottom:0px;}
-.big-badge {display:inline-block;background:#eef2ff;color:#3730a3;padding:6px 10px;border-radius:999px;font-weight:600;}
 .hr {height:1px;background:#e5e7eb;border:none;margin:16px 0;}
 .sev-tag {display:inline-block;border-radius:10px;padding:4px 10px;font-weight:700;}
-.ok {color:#065f46;}
-.warn {color:#9a3412;}
-.err {color:#991b1b;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -74,7 +64,6 @@ defaults = {
     "best_condition": None,
     "alt_conditions": [],
     "hospitals": [],
-    "email_draft": "",
     "latest_pdf_bytes": b"",
     "latest_ics_bytes": b"",
     "receipt_pdf_bytes": b"",
@@ -84,7 +73,7 @@ for k, v in defaults.items():
         st.session_state[k] = v
 
 # -----------------------------
-# Load rules.yaml (diseases + cities + general_rules)
+# Load rules.yaml
 # -----------------------------
 def load_rules(path: str) -> Dict[str, Any]:
     if not YAML_AVAILABLE:
@@ -100,13 +89,19 @@ def load_rules(path: str) -> Dict[str, Any]:
 
 RULES = load_rules(RULES_FILE)
 if not YAML_AVAILABLE:
-    st.error("PyYAML (yaml) not installed. Install with `pip install PyYAML` and restart the app.")
+    st.error("PyYAML not installed. Install with `pip install PyYAML` and restart the app.")
 if not RULES:
-    st.warning(f"rules.yaml not found or empty at '{RULES_FILE}'. Please add rules.yaml next to app.py.")
-# Provide convenient access with defaults
-GENERAL_RULES = RULES.get("general_rules", {})
+    st.warning(f"rules.yaml not found or empty at '{RULES_FILE}'. Some features (diseases/hospitals) will be unavailable.")
+
+GENERAL_RULES = RULES.get("general_rules", {}) or {}
 DISEASES = RULES.get("diseases", []) or []
+# cities as dict of city -> {cost_modifier:, hospitals: [...]}
 CITIES = RULES.get("cities", {}) or {}
+HOSPITALS_ROOT = RULES.get("hospitals", {}) or {}
+
+# Helper to normalize keys
+def city_key(k: str) -> str:
+    return (k or "").strip().lower()
 
 # -----------------------------
 # Utilities
@@ -115,29 +110,39 @@ def normalize_text(t: str) -> str:
     return re.sub(r"\s+", " ", t or "").strip().lower()
 
 def list_india_cities() -> List[str]:
-    ks = sorted([k for k in CITIES.keys() if k and k != "default"])
-    return ks
+    # prefer cities from CITIES keys, if absent, try hospitals root keys
+    keys = []
+    if CITIES:
+        keys = sorted([k for k in CITIES.keys() if k and k != "default"])
+    elif HOSPITALS_ROOT:
+        keys = sorted([k for k in HOSPITALS_ROOT.keys() if k and k != "default"])
+    return keys
 
 def india_adjust_cost(base: List[int], city: str) -> Tuple[int, int]:
     if not base or len(base) != 2:
         return (0, 0)
     cm = 1.0
-    if city:
-        city_key = (city or "").strip().lower()
-        if city_key in CITIES and isinstance(CITIES[city_key].get("cost_modifier"), (int, float)):
-            cm = float(CITIES[city_key]["cost_modifier"])
-        else:
-            # fallback to default if present
-            default = CITIES.get("default", {})
-            cm = float(default.get("cost_modifier", 1.0))
+    ck = city_key(city)
+    if CITIES and ck in CITIES:
+        cm = float(CITIES[ck].get("cost_modifier", 1.0))
+    elif HOSPITALS_ROOT and ck in HOSPITALS_ROOT:
+        cm = float(HOSPITALS_ROOT[ck].get("cost_modifier", 1.0))
     else:
-        cm = float(CITIES.get("default", {}).get("cost_modifier", 1.0))
+        cm = float((CITIES.get("default") or HOSPITALS_ROOT.get("default") or {}).get("cost_modifier", 1.0))
     return (int(base[0]*cm), int(base[1]*cm))
 
-def nearby_hospitals(city: str) -> List[Dict[str, Any]]:
-    if not city:
-        return CITIES.get("default", {}).get("hospitals", [])
-    return CITIES.get((city or "").strip().lower(), CITIES.get("default", {})).get("hospitals", [])
+def nearby_hospitals(city: str) -> List[Dict[str,Any]]:
+    ck = city_key(city)
+    if CITIES and ck in CITIES:
+        return CITIES[ck].get("hospitals", []) or []
+    if HOSPITALS_ROOT and ck in HOSPITALS_ROOT:
+        return HOSPITALS_ROOT[ck].get("hospitals", []) or []
+    # fallback to default
+    if CITIES and "default" in CITIES:
+        return CITIES["default"].get("hospitals", []) or []
+    if HOSPITALS_ROOT and "default" in HOSPITALS_ROOT:
+        return HOSPITALS_ROOT["default"].get("hospitals", []) or []
+    return []
 
 def ascii_safe(s: str) -> str:
     if not s:
@@ -239,39 +244,33 @@ def detect_conditions(text: str) -> List[Dict]:
             results.append({
                 "name": d.get("name"),
                 "hits": hits,
-                "about": d.get("about", ""),
                 "procedures": d.get("procedures", []),
                 "recovery_recos": d.get("recovery_recos", []),
                 "severity_rules": d.get("severity_rules", {}),
-                "cost_inr": d.get("cost_inr", [0,0])
+                "cost_inr": d.get("cost_inr", [0,0]),
+                "about": d.get("about", "")
             })
     results.sort(key=lambda x: len(x["hits"]), reverse=True)
     return results
 
 def severity_percent(text: str, cond: Dict) -> int:
     t = normalize_text(text)
-    # disease-specific red flags from YAML
     disease_reds = [r.lower() for r in (cond.get("severity_rules", {}).get("red_flags", []) or [])]
     general_reds = [r.lower() for r in (GENERAL_RULES.get("red_flags", []) or [])]
     signals = ["severe","acute","sudden","worsening","emergency","fever","syncope","vomiting","bleeding","dyspnea","chest pain","unstable","shock","collapse","sepsis","uncontrolled","hypotension","tachycardia"]
     s = 0
-    # count general red flags
     for rf in general_reds:
         if rf and rf in t:
             s += 3
-    # count disease red flags
     for rf in disease_reds:
         if rf and rf in t:
             s += 3
-    # count signal words
     s += sum(1 for w in signals if w in t)
-    # boost by number of keyword hits
     hits_boost = min(5, len(cond.get("hits", [])))
     pct = s * 8 + hits_boost * 10
     if len(cond.get("hits", [])) > 0 and pct < 10:
         pct = 10
     pct = max(0, min(95, pct))
-    # If text suggests normal exam reduce
     if any(p in t for p in ["normal study", "within normal limits", "no acute", "impression: normal", "normal chest xray", "normal study"]):
         pct = min(pct, 5)
     return int(pct)
@@ -340,10 +339,9 @@ def build_full_pdf(entities: Dict, problems: List[str], best: Dict, city: str,
 
     sec("Condition & Care Plan (informational)")
     if best:
-        pdf.multi_cell(0, 6, ascii_safe(f"Likely condition: {best['name']}"))
+        pdf.multi_cell(0, 6, ascii_safe(f"Likely condition: {best.get('name','—')}"))
         pdf.multi_cell(0, 6, ascii_safe(f"About: {best.get('about','—')}"))
         pdf.multi_cell(0, 6, ascii_safe(f"Typical procedures: {', '.join(best.get('procedures', []) or [])}"))
-        pdf.multi_cell(0, 6, ascii_safe(f"Immediate steps: {', '.join(best.get('procedures', []) or [])}"))
         pdf.multi_cell(0, 6, ascii_safe(f"Recovery: {' | '.join(best.get('recovery_recos', []) or [])}"))
         pdf.multi_cell(0, 6, ascii_safe(f"Severity: {best.get('severity_pct','—')}%"))
         lo, hi = india_adjust_cost(best.get("cost_inr", [0,0]), city)
@@ -523,7 +521,7 @@ if st.session_state.extracted_text:
     st.session_state.problems = probs
     st.session_state.best_condition = best
 
-    # Hospitals list (names only for display block)
+    # Hospitals list (names only for display)
     hosp_objs = nearby_hospitals(city)
     hospitals_list = [h.get("name","") for h in hosp_objs]
     st.session_state.hospitals = hospitals_list
@@ -572,15 +570,14 @@ if st.session_state.extracted_text:
     st.markdown('<div class="section-title">4) Suggested hospitals (India)</div>', unsafe_allow_html=True)
     st.dataframe(pd.DataFrame({"Hospitals": st.session_state.hospitals or ["—"]}), use_container_width=True)
 
-    # ---------- 5) Appointment Booking System ----------
+    # ---------- 5) Appointment Booking ----------
     st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
     st.markdown('<div class="section-title">5) Hospital Appointment Booking</div>', unsafe_allow_html=True)
 
-    hosp_dir = hosp_objs or CITIES.get("default", {}).get("hospitals", [])
+    hosp_dir = hosp_objs or (CITIES.get("default", {}) or HOSPITALS_ROOT.get("default", {})).get("hospitals", [])
     if not hosp_dir:
         st.info("Select a city with hospitals in the sidebar to enable booking.")
     else:
-        # Choose hospital
         hospital_names = [h.get("name","") for h in hosp_dir]
         h_idx = st.selectbox("Choose a hospital", list(range(len(hospital_names))),
                              format_func=lambda i: hospital_names[i])
@@ -588,48 +585,39 @@ if st.session_state.extracted_text:
         hospital_name = chosen_h.get("name","")
         hospital_email = chosen_h.get("email","")
 
-        # Choose department (suggest from condition)
+        # Suggest department from condition name heuristics
         suggested_dept = None
         if best:
             spec = (best.get("name","") or "").lower()
-            # naive mapping by name keywords in disease name
             if "card" in spec or "coronary" in spec: suggested_dept = "Cardiology"
             elif "urolog" in spec or "renal" in spec or "stone" in spec: suggested_dept = "Urology"
             elif "spine" in spec or "neuro" in spec: suggested_dept = "Spine/Neuro"
             elif "ent" in spec or "sinus" in spec: suggested_dept = "ENT"
-            elif "ophth" in spec or "cataract" in spec: suggested_dept = "Ophthalmology"
-            elif "orth" in spec or "acl" in spec or "fracture" in spec: suggested_dept = "Orthopaedics"
-            elif "append" in spec or "hernia" in spec or "gall" in spec or "general" in spec: suggested_dept = "General Surgery"
+            elif "cataract" in spec or "ophth" in spec: suggested_dept = "Ophthalmology"
+            elif "orth" in spec or "acl" in spec: suggested_dept = "Orthopaedics"
+            elif "append" in spec or "hernia" in spec or "gall" in spec: suggested_dept = "General Surgery"
 
         dept_names = list(chosen_h.get("departments", {}).keys())
-        if suggested_dept in dept_names:
-            dept_default = dept_names.index(suggested_dept)
-        else:
-            dept_default = 0 if dept_names else 0
+        dept_default = dept_names.index(suggested_dept) if (suggested_dept in dept_names) else 0 if dept_names else 0
         department = st.selectbox("Department", dept_names or ["General"], index=dept_default)
         doctors = chosen_h.get("departments", {}).get(department, ["Duty Doctor"])
         doctor = st.selectbox("Doctor", doctors)
 
-        # Slot picker (next 14 days, 09:00–17:00, 30-min)
         rows = load_bookings()
         colA, colB = st.columns(2)
         with colA:
             appt_date = st.date_input("Choose date", value=date.today(), min_value=date.today(), max_value=date.today()+timedelta(days=14))
         with colB:
-            # build slot list
             slots = []
-            start_dt = datetime.combine(appt_date, time(9, 0))
-            end_dt = datetime.combine(appt_date, time(17, 0))
+            start_dt = datetime.combine(appt_date, time(9,0))
+            end_dt = datetime.combine(appt_date, time(17,0))
             cur = start_dt
             while cur < end_dt:
                 slots.append(cur.strftime("%H:%M"))
                 cur += timedelta(minutes=30)
-
-            # remove taken
             free_slots = [s for s in slots if not slot_taken(rows, hospital_name, doctor, str(appt_date), s)]
             appt_time = st.selectbox("Available time", free_slots or ["No slots available"])
 
-        # Patient details
         colP1, colP2, colP3 = st.columns(3)
         with colP1:
             patient_name = st.text_input("Patient name", value=ents.get("Name",""))
@@ -638,7 +626,6 @@ if st.session_state.extracted_text:
         with colP3:
             patient_email = st.text_input("Email (optional)")
 
-        # Confirm booking
         if st.button("✅ Confirm Booking"):
             if not free_slots or appt_time not in free_slots:
                 st.error("Selected time is not available.")
@@ -660,7 +647,6 @@ if st.session_state.extracted_text:
                 save_bookings(rows)
 
                 st.success(f"Booked! ID: {booking_id}")
-                # Build receipt PDF + ICS
                 receipt_pdf = build_receipt_pdf(new_row)
                 st.session_state.receipt_pdf_bytes = receipt_pdf
 
@@ -676,20 +662,12 @@ if st.session_state.extracted_text:
 
                 st.info("Use the Email section below to email the hospital with attachments.")
 
-    # ---------- 6) Full Report (original feature) ----------
+    # ---------- 6) Full report ----------
     st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
     st.markdown('<div class="section-title">6) Full report download</div>', unsafe_allow_html=True)
 
-    appt_info = {"hospital": hospitals_list[0] if hospitals_list else "",
-                 "date": "", "time": "", "phone": "", "email": ""}
-    full_pdf = build_full_pdf(
-        st.session_state.entities,
-        st.session_state.problems,
-        st.session_state.best_condition,
-        city,
-        st.session_state.hospitals,
-        appt_info
-    )
+    appt_info = {"hospital": hospitals_list[0] if hospitals_list else "", "date": "", "time": "", "phone": "", "email": ""}
+    full_pdf = build_full_pdf(st.session_state.entities, st.session_state.problems, st.session_state.best_condition, city, st.session_state.hospitals, appt_info)
     st.session_state.latest_pdf_bytes = full_pdf
 
     st.download_button("⬇️ Download Full Report (PDF)",
@@ -705,9 +683,7 @@ if st.session_state.extracted_text:
         sender_pass  = st.text_input("App password / SMTP password", type="password")
         send_copy_to_me = st.checkbox("Send me a copy (BCC)", value=True)
     with colE2:
-        fallback_email = ""
-        if hosp_dir:
-            fallback_email = hosp_dir[0].get("email","")
+        fallback_email = (hosp_dir[0].get("email","") if hosp_dir else "")
         hospital_email = st.text_input("Hospital / Recipient email", value=fallback_email)
         email_subject  = st.text_input("Email subject", value="Appointment Booking Request")
 
@@ -717,7 +693,6 @@ if st.session_state.extracted_text:
         security = st.selectbox("Security", ["STARTTLS (recommended, port 587)", "SSL/TLS (port 465)"])
         smtp_timeout = st.number_input("Timeout (seconds)", min_value=5, max_value=120, value=25)
 
-    # Compose email body
     body_lines = ["Dear Scheduling Team,", ""]
     if len(st.session_state.problems) > 0:
         body_lines.append("Report highlights: " + "; ".join(st.session_state.problems[:3]))
@@ -728,7 +703,6 @@ if st.session_state.extracted_text:
     email_body = "\n".join(body_lines)
     st.code(email_body)
 
-    # Attachments: include receipt if exists, full report always, ICS if exists
     attachments = [(full_pdf, "clinical_full_report.pdf", "application/pdf")]
     if st.session_state.receipt_pdf_bytes:
         attachments.append((st.session_state.receipt_pdf_bytes, "booking_receipt.pdf", "application/pdf"))
@@ -754,7 +728,7 @@ if st.session_state.extracted_text:
             )
             st.success(msg) if ok else st.error(msg)
 
-# ---------- My Bookings (Persisted) ----------
+# ---------- My Bookings ----------
 st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
 st.markdown('<div class="section-title">My Bookings</div>', unsafe_allow_html=True)
 
@@ -763,7 +737,6 @@ if not all_rows:
     st.info("No bookings yet.")
 else:
     st.dataframe(pd.DataFrame(all_rows), use_container_width=True)
-    # Cancel controls
     cancel_id = st.text_input("Enter Booking ID to cancel")
     if st.button("Cancel Booking"):
         if cancel_id.strip():
