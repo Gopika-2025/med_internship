@@ -99,10 +99,27 @@ def clean_text(s: str) -> str:
 # PDF helpers
 # ---------------------------
 def get_pdf_bytes(pdf_obj: FPDF) -> bytes:
+    """
+    Return a bytes object for the FPDF output.
+    Handles cases where FPDF.output(dest='S') returns bytes, bytearray, or str.
+    """
     out = pdf_obj.output(dest="S")
+    # bytes
     if isinstance(out, bytes):
         return out
-    return out.encode("latin-1")
+    # bytearray
+    if isinstance(out, bytearray):
+        return bytes(out)
+    # str (some environments)
+    if isinstance(out, str):
+        # PDF bytes are compatible with latin-1 encoding
+        return out.encode("latin-1")
+    # fallback: try to convert
+    try:
+        return bytes(out)
+    except Exception:
+        # last resort: stringify then encode latin-1
+        return str(out).encode("latin-1", "replace")
 
 def set_pdf_font(pdf: FPDF, size=12, style=""):
     try:
@@ -516,4 +533,3 @@ if st.session_state.get("latest_pdf_bytes") and confirm and st.button("Save curr
     st.success(f"Saved booking {rec['id']}")
 
 st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
-st.caption("© 2025 — Educational only. Not medical advice.")
