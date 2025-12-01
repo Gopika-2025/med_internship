@@ -1,41 +1,31 @@
 general_rules:
   red_flags:
-    - sepsis
-    - shock
-    - loss of consciousness
-    - acute abdomen
-    - chest pain
-    - uncontrolled bleeding
     - respiratory distress
     - unresponsiveness
     - cardiac arrest
-
-# ---------------------------------------------------------------------
-# BANGALORE CITY ONLY
-# ---------------------------------------------------------------------
 city_cost_modifiers:
   bangalore: 1.20
   default: 1.00
-
-# ---------------------------------------------------------------------
-# HOSPITALS (Bangalore Only)
-# ---------------------------------------------------------------------
 hospitals:
   bangalore:
     - name: Manipal Hospital – Old Airport Road
       email: appointments.blr@manipalhospitals.com
+      rating: 4.7
+      cost_factor: 1.25
       departments:
         General Surgery:
           - Dr. Karthik R
+          - Dr. Sanjay Pai
         Gastroenterology:
           - Dr. Surya V
         Cardiology:
           - Dr. Vishal A
         Neurology:
           - Dr. Anita S
-
     - name: Aster CMI Hospital
-      email: bookings@astercmihospital.com
+      email: bookings@astercmi.com
+      rating: 4.6
+      cost_factor: 1.20
       departments:
         General Surgery:
           - Dr. Rajesh K
@@ -43,9 +33,12 @@ hospitals:
           - Dr. Manoj T
         Pulmonology:
           - Dr. Kavya L
-
-    - name: Fortis Bannerghatta
+        Orthopedics:
+          - Dr. Thomas George
+    - name: Fortis Hospital – Bannerghatta Road
       email: contact.bg@fortishealthcare.com
+      rating: 4.5
+      cost_factor: 1.18
       departments:
         Gastroenterology:
           - Dr. Arun Prasad
@@ -53,14 +46,105 @@ hospitals:
           - Dr. Ahuja
         General Surgery:
           - Dr. Prakash M
-
+        Oncology:
+          - Dr. Ramesh S
+    - name: Apollo Hospital – Jayanagar
+      email: apollojay@apollohospitals.com
+      rating: 4.6
+      cost_factor: 1.22
+      departments:
+        General Surgery:
+          - Dr. Girish N
+        Orthopedics:
+          - Dr. Sameer S
+        Cardiology:
+          - Dr. Madhav H
+        Emergency Medicine:
+          - Dr. Latha V
+    - name: Sakra World Hospital
+      email: info@sakraworldhospital.com
+      rating: 4.4
+      cost_factor: 1.15
+      departments:
+        General Surgery:
+          - Dr. Ashwin Kumar
+        Gastroenterology:
+          - Dr. Deepak Mehta
+        Pulmonology:
+          - Dr. Adarsh R
+        Neurology:
+          - Dr. Vani K
+    - name: Columbia Asia Hospital – Hebbal
+      email: care.hebbal@columbiaasia.com
+      rating: 4.3
+      cost_factor: 1.12
+      departments:
+        Cardiology:
+          - Dr. Pradeep
+        Nephrology:
+          - Dr. Sunil Rao
+        General Surgery:
+          - Dr. Ravi Kumar
+        Gastroenterology:
+          - Dr. Harish G
+    - name: Cloudnine Hospital – Old Airport Road
+      email: info@cloudninecare.com
+      rating: 4.6
+      cost_factor: 1.10
+      departments:
+        Obstetrics:
+          - Dr. Shobha Gupta
+        Gynecology:
+          - Dr. Kavita M
+        Pediatrics:
+          - Dr. Asha M
+        Fertility:
+          - Dr. Ranjani B
+    - name: Narayana Multispeciality Hospital – HSR Layout
+      email: contact.hsr@nhhospitals.com
+      rating: 4.4
+      cost_factor: 1.08
+      departments:
+        General Surgery:
+          - Dr. Prasanna K
+        Cardiology:
+          - Dr. Naveen K
+        Orthopedics:
+          - Dr. Mahesh Rao
+        Neurology:
+          - Dr. Indira S
+    - name: BGS Global Hospital
+      email: info@bgsglobalhospital.com
+      rating: 4.5
+      cost_factor: 1.16
+      departments:
+        Liver Transplant:
+          - Dr. Ravi V
+        General Surgery:
+          - Dr. Sudhir U
+        Gastroenterology:
+          - Dr. Ajay Shetty
+        Emergency:
+          - Dr. Latha D
+    - name: Rainbow Children’s Hospital – Marathahalli
+      email: contact@rainbowhospitals.in
+      rating: 4.7
+      cost_factor: 1.12
+      departments:
+        Pediatrics:
+          - Dr. Niharika S
+        Neonatology:
+          - Dr. Vijay R
+        Pediatric Surgery:
+          - Dr. Harsha B
+        Emergency Pediatrics:
+          - Dr. Meera D
   default:
     - name: Accredited Tertiary Centre
       email: ""
-
-# ---------------------------------------------------------------------
-# DISEASE DATABASE — Expanded Format
-# ---------------------------------------------------------------------
+      rating: 4.0
+      cost_factor: 1.00
+      departments: {}
 diseases:
 
   # ==========================================================
@@ -253,6 +337,7 @@ diseases:
     post_surgery_plan:
       - "Watch for redness or fever"
     cost_inr: [70000, 220000]
+
   # ==========================================================
   # 7) Umbilical Hernia
   # ==========================================================
@@ -365,7 +450,7 @@ diseases:
     lifestyle_plan:
       - "Avoid street food"
     post_surgery_plan:
-      - "N/A (no surgery)"
+      - "N/A"
     cost_inr: [20000, 60000]
 
   # ==========================================================
@@ -398,7 +483,7 @@ diseases:
     lifestyle_plan:
       - "Avoid cold exposure"
     post_surgery_plan:
-      - "N/A (no surgery)"
+      - "N/A"
     cost_inr: [30000, 150000]
 
   # ==========================================================
@@ -433,6 +518,7 @@ diseases:
     post_surgery_plan:
       - "N/A"
     cost_inr: [20000, 200000]
+
   # ==========================================================
   # 13) Asthma
   # ==========================================================
@@ -529,7 +615,6 @@ diseases:
     post_surgery_plan:
       - "N/A"
     cost_inr: [15000, 80000]
-
   # ==========================================================
   # 16) Pleural Effusion
   # ==========================================================
@@ -589,7 +674,7 @@ diseases:
     cost_inr: [70000, 350000]
 
   # ==========================================================
-  # 18) ARDS
+  # 18) ARDS (Acute Respiratory Distress Syndrome)
   # ==========================================================
   - name: ARDS
     keywords:
@@ -615,7 +700,7 @@ diseases:
     cost_inr: [150000, 900000]
 
   # ==========================================================
-  # 19) Influenza
+  # 19) Influenza (Severe)
   # ==========================================================
   - name: Influenza
     keywords:
@@ -673,6 +758,7 @@ diseases:
     post_surgery_plan:
       - "N/A"
     cost_inr: [20000, 120000]
+
   # ==========================================================
   # 21) Typhoid Fever
   # ==========================================================
@@ -816,7 +902,7 @@ diseases:
     cost_inr: [20000, 150000]
 
   # ==========================================================
-  # 26) Hypertension
+  # 26) Hypertension (High BP)
   # ==========================================================
   - name: Hypertension
     keywords:
@@ -909,7 +995,7 @@ diseases:
     cost_inr: [60000, 300000]
 
   # ==========================================================
-  # 29) Myocardial Infarction
+  # 29) Myocardial Infarction (Heart Attack)
   # ==========================================================
   - name: Myocardial Infarction
     keywords:
@@ -1133,7 +1219,7 @@ diseases:
     cost_inr: [30000, 120000]
 
   # ==========================================================
-  # 37) Peripheral Artery Disease
+  # 37) Peripheral Artery Disease (PAD)
   # ==========================================================
   - name: Peripheral Artery Disease
     keywords:
@@ -1236,6 +1322,7 @@ diseases:
     post_surgery_plan:
       - "N/A"
     cost_inr: [20000, 90000]
+
   # ==========================================================
   # 41) Stroke (CVA)
   # ==========================================================
@@ -1377,7 +1464,6 @@ diseases:
     post_surgery_plan:
       - "Neurological monitoring"
     cost_inr: [80000, 350000]
-
   # ==========================================================
   # 46) Encephalitis
   # ==========================================================
@@ -1514,6 +1600,7 @@ diseases:
     post_surgery_plan:
       - "N/A"
     cost_inr: [15000, 60000]
+
   # ==========================================================
   # 51) Vertigo (Peripheral / BPPV)
   # ==========================================================
@@ -1726,7 +1813,7 @@ diseases:
     cost_inr: [20000, 90000]
 
   # ==========================================================
-  # 59) Osteoarthritis (General)
+  # 59) Osteoarthritis
   # ==========================================================
   - name: Osteoarthritis
     keywords:
@@ -1838,7 +1925,7 @@ diseases:
     cost_inr: [30000, 200000]
 
   # ==========================================================
-  # 63) UTI (Urinary Tract Infection)
+  # 63) Urinary Tract Infection (UTI)
   # ==========================================================
   - name: Urinary Tract Infection
     keywords:
@@ -1995,7 +2082,7 @@ diseases:
     cost_inr: [10000, 50000]
 
   # ==========================================================
-  # 69) PCOD / PCOS
+  # 69) PCOS / PCOD
   # ==========================================================
   - name: PCOS
     keywords:
@@ -2048,6 +2135,7 @@ diseases:
     post_surgery_plan:
       - "Follow-up ultrasound"
     cost_inr: [30000, 200000]
+
   # ==========================================================
   # 71) Endometriosis
   # ==========================================================
@@ -2105,7 +2193,7 @@ diseases:
     cost_inr: [15000, 80000]
 
   # ==========================================================
-  # 73) Fibroids (Symptomatic)
+  # 73) Uterine Fibroids
   # ==========================================================
   - name: Uterine Fibroids
     keywords:
@@ -2181,7 +2269,6 @@ diseases:
     post_surgery_plan:
       - "N/A"
     cost_inr: [10000, 30000]
-
   # ==========================================================
   # 76) Anemia (Moderate to Severe)
   # ==========================================================
@@ -2292,7 +2379,7 @@ diseases:
     cost_inr: [5000, 50000]
 
   # ==========================================================
-  # 80) Food Poisoning (Severe)
+  # 80) Severe Food Poisoning
   # ==========================================================
   - name: Severe Food Poisoning
     keywords:
@@ -2318,6 +2405,7 @@ diseases:
     post_surgery_plan:
       - "N/A"
     cost_inr: [3000, 30000]
+
   # ==========================================================
   # 81) Gastritis (Severe)
   # ==========================================================
@@ -2404,14 +2492,14 @@ diseases:
     cost_inr: [5000, 20000]
 
   # ==========================================================
-  # 84) Kidney Stones
+  # 84) Kidney Stones (Duplicate - Severe Variant)
   # ==========================================================
-  - name: Kidney Stones
+  - name: Kidney Stones (Severe)
     keywords:
       - kidney stone
       - renal calculus
       - flank pain
-      - ureteric stone
+      - ureteric stone severe
     severity_rules:
       red_flags:
         - infection
@@ -2433,7 +2521,7 @@ diseases:
     cost_inr: [20000, 200000]
 
   # ==========================================================
-  # 85) UTI (Moderate to Severe)
+  # 85) Severe UTI
   # ==========================================================
   - name: Severe UTI
     keywords:
@@ -2460,14 +2548,14 @@ diseases:
     cost_inr: [2000, 20000]
 
   # ==========================================================
-  # 86) Kidney Infection (Pyelonephritis)
+  # 86) Kidney Infection (Pyelonephritis Severe)
   # ==========================================================
-  - name: Pyelonephritis
+  - name: Pyelonephritis (Severe)
     keywords:
-      - pyelonephritis
-      - flank pain
+      - pyelonephritis severe
       - fever chills
       - uti severe
+      - flank pain
     severity_rules:
       red_flags:
         - sepsis
@@ -2486,7 +2574,7 @@ diseases:
     cost_inr: [20000, 120000]
 
   # ==========================================================
-  # 87) Liver Disease (Acute)
+  # 87) Acute Liver Disease
   # ==========================================================
   - name: Acute Liver Disease
     keywords:
@@ -2592,7 +2680,561 @@ diseases:
     post_surgery_plan:
       - "Regular gastro review"
     cost_inr: [70000, 500000]
+# ---------------------------------------------------------------------
+# HOSPITAL RATINGS + DEPARTMENTS + DOCTORS
+# ---------------------------------------------------------------------
+
+hospital_ratings:
+  bangalore:
+    - name: Manipal Hospital – Old Airport Road
+      rating: 4.7
+      cost_factor: 1.30        # Expensive but high-quality
+      specialties:
+        - General Surgery
+        - Gastroenterology
+        - Cardiology
+        - Neurology
+      departments:
+        General Surgery:
+          rating: 4.8
+          doctors:
+            - name: Dr. Karthik R
+              experience: 15
+              rating: 4.9
+        Gastroenterology:
+          rating: 4.7
+          doctors:
+            - name: Dr. Surya V
+              experience: 12
+              rating: 4.8
+        Cardiology:
+          rating: 4.6
+          doctors:
+            - name: Dr. Vishal A
+              experience: 20
+              rating: 4.8
+        Neurology:
+          rating: 4.5
+          doctors:
+            - name: Dr. Anita S
+              experience: 10
+              rating: 4.7
+
+    - name: Aster CMI Hospital
+      rating: 4.6
+      cost_factor: 1.20        # Slightly premium
+      specialties:
+        - General Surgery
+        - Emergency Medicine
+        - Pulmonology
+      departments:
+        General Surgery:
+          rating: 4.5
+          doctors:
+            - name: Dr. Rajesh K
+              experience: 18
+              rating: 4.6
+        Emergency Medicine:
+          rating: 4.4
+          doctors:
+            - name: Dr. Manoj T
+              experience: 14
+              rating: 4.5
+        Pulmonology:
+          rating: 4.6
+          doctors:
+            - name: Dr. Kavya L
+              experience: 9
+              rating: 4.7
+
+    - name: Fortis Bannerghatta
+      rating: 4.5
+      cost_factor: 1.10        # Balanced cost
+      specialties:
+        - Gastroenterology
+        - Cardiology
+        - General Surgery
+      departments:
+        Gastroenterology:
+          rating: 4.4
+          doctors:
+            - name: Dr. Arun Prasad
+              experience: 22
+              rating: 4.6
+        Cardiology:
+          rating: 4.6
+          doctors:
+            - name: Dr. Ahuja
+              experience: 17
+              rating: 4.7
+        General Surgery:
+          rating: 4.4
+          doctors:
+            - name: Dr. Prakash M
+              experience: 11
+              rating: 4.3
+
+    - name: Columbia Asia Yeshwanthpur
+      rating: 4.3
+      cost_factor: 1.00        # Moderately priced
+      specialties:
+        - General Surgery
+        - Internal Medicine
+        - Neurology
+      departments:
+        General Surgery:
+          rating: 4.2
+          doctors:
+            - name: Dr. Neeraj S
+              experience: 13
+              rating: 4.3
+        Internal Medicine:
+          rating: 4.1
+          doctors:
+            - name: Dr. Priya N
+              experience: 9
+              rating: 4.2
+        Neurology:
+          rating: 4.0
+          doctors:
+            - name: Dr. Shweta R
+              experience: 10
+              rating: 4.1
+
+    - name: Sakra World Hospital
+      rating: 4.4
+      cost_factor: 1.15       # Upper-mid range
+      specialties:
+        - Gastroenterology
+        - Pulmonology
+        - Orthopedics
+      departments:
+        Gastroenterology:
+          rating: 4.3
+          doctors:
+            - name: Dr. Naveen S
+              experience: 13
+              rating: 4.5
+        Pulmonology:
+          rating: 4.4
+          doctors:
+            - name: Dr. Arjun H
+              experience: 10
+              rating: 4.4
+        Orthopedics:
+          rating: 4.2
+          doctors:
+            - name: Dr. Rakesh V
+              experience: 12
+              rating: 4.3
+# ---------------------------------------------------------------------
+# ENTERPRISE METADATA FOR BACKEND/API
+# ---------------------------------------------------------------------
+
+metadata:
+  version: "3.0"
+  last_updated: "2025-01-12"
+  author: "Clinical Intelligence Engine"
+  license: "Internal Use Only"
+  system: "Clinical AI Decision Support"
+  description: "Enterprise-grade rule engine for diagnosis → department → hospital → cost → doctor mapping"
+
+# ---------------------------------------------------------------------
+# DISEASE → DEPARTMENT MAPPING (MASTER LIST)
+# ---------------------------------------------------------------------
+
+department_map:
+
+  # General Surgery
+  general_surgery:
+    - appendicitis
+    - cholecystitis
+    - gallstones
+    - intestinal obstruction
+    - hernia
+    - umbilical hernia
+    - femoral hernia
+    - perforation
+    - peritonitis
+    - acute abdomen
+
+  # Gastroenterology
+  gastroenterology:
+    - pancreatitis
+    - gastritis
+    - ulcer
+    - bleeding ulcer
+    - hepatitis
+    - liver disease
+    - fatty liver
+    - jaundice
+
+  # Cardiology
+  cardiology:
+    - chest pain
+    - cad
+    - coronary artery disease
+    - myocardial infarction
+    - heart failure
+    - unstable angina
+    - arrhythmia
+    - atrial fibrillation
+    - hypertension
+    - hypertensive emergency
+
+  # Pulmonology
+  pulmonology:
+    - pneumonia
+    - copd
+    - asthma
+    - respiratory distress
+    - pleural effusion
+    - pulmonary embolism
+    - ards
+
+  # Neurology
+  neurology:
+    - stroke
+    - cva
+    - seizure
+    - epilepsy
+    - migraine
+    - vertigo
+    - multiple sclerosis
+    - parkinson
+    - encephalitis
+    - meningitis
+
+  # Orthopedics
+  orthopedics:
+    - osteoarthritis
+    - knee pain
+    - fracture
+    - disc herniation
+    - cervical spondylosis
+
+  # Urology
+  urology:
+    - kidney stone
+    - renal calculi
+    - hydronephrosis
+    - pyelonephritis
+    - bph
+    - prostatitis
+
+  # Gynecology
+  gynecology:
+    - ovarian cyst
+    - pcos
+    - endometriosis
+    - pid
+    - fibroid
+
+  # Infectious Diseases
+  infectious:
+    - dengue
+    - malaria
+    - chikungunya
+    - typhoid
+    - gastroenteritis
+    - leptospirosis
+    - food poisoning
+
+# ---------------------------------------------------------------------
+# VALIDATION RULES (ENTERPRISE-GRADE)
+# ---------------------------------------------------------------------
+
+validators:
+  patient:
+    name:
+      regex: "^[A-Za-z .'-]{2,80}$"
+      required: true
+    age:
+      min: 0
+      max: 120
+      required: true
+    sex:
+      allowed: ["male", "female", "other"]
+
+  appointment:
+    time_slots:
+      start: "08:00"
+      end: "20:00"
+    duration_minutes: 20
+    allow_same_day: true
+
+  hospital:
+    min_rating: 3.5
+    max_cost_factor: 1.50
+
+# ---------------------------------------------------------------------
+# HOSPITAL SELECTION ENGINE RULES
+# ---------------------------------------------------------------------
+
+selection_rules:
+
+  choose_best_hospital:
+    logic:
+      - must_support_department: true
+      - prioritize_high_rating: true
+      - prioritize_experienced_doctors: true
+      - consider_cost_factor: true
+    weightage:
+      rating: 0.50
+      doctor_experience: 0.25
+      cost: 0.25
+
+  choose_cost_efficient:
+    logic:
+      - must_support_department: true
+      - choose_low_cost_factor: true
+      - avoid_premium_hospitals: true
+    weightage:
+      cost: 0.70
+      rating: 0.20
+      doctor_experience: 0.10
+
+  choose_fast_availability:
+    logic:
+      - prioritize_open_slots: true
+      - allow_same_day: true
+      - flexible_department_doctors: true
+    weightage:
+      availability: 0.60
+      rating: 0.20
+      cost: 0.20
+
+# ---------------------------------------------------------------------
+# DOCTOR RECOMMENDATION RULES
+# ---------------------------------------------------------------------
+
+doctor_rules:
+
+  preferred_doctor:
+    logic:
+      - highest_rating
+      - years_of_experience
+      - specialization_match
+      - hospital_reputation
+
+  backup_doctor:
+    logic:
+      - next_best_rating
+      - minimum_experience >= 5
+
+# ---------------------------------------------------------------------
+# CUSTOM COST ENGINE RULES
+# ---------------------------------------------------------------------
+
+cost_engine:
+  include:
+    - base_cost
+    - city_modifier
+    - hospital_cost_factor
+    - doctor_experience_weight
+    - rating_weight
+  additional_fees:
+    registration_fee: 200
+    consultation_fee: 600
+    emergency_fee: 2000
+  tax_rate_percent: 5
+
+# final_cost calculation:
+# final_cost = 
+#     (base_cost * city_modifier * hospital_cost_factor *
+#     (1 + doctor_experience * experience_weight) *
+#     (1 + hospital_rating * rating_weight))
+#     + registration + consultation + tax
+# ---------------------------------------------------------------------
+# PART 10 — AI REASONING ENGINE + API BLUEPRINT + TEST CASES
+# ---------------------------------------------------------------------
+
+# ---------------------------------------------------------------------
+# AI REASONING ENGINE (DECISION LAYERS)
+# ---------------------------------------------------------------------
+ai_engine:
+
+  layers:
+
+    # STEP 1 — Identify condition from keywords
+    detect_condition:
+      strategy: "keyword_match + weighted_similarity"
+      includes:
+        - keyword_count
+        - match_strength
+        - severity_terms
+        - red_flag_hits
+
+    # STEP 2 — Predict the department
+    predict_department:
+      strategy: "lookup + fallback_matching"
+      logic:
+        - "check department_map for match"
+        - "if multiple depts → choose one with highest keyword overlap"
+
+    # STEP 3 — Recommend hospital
+    recommend_hospital:
+      strategy: "weighted multi-factor scoring"
+      factors:
+        rating_weight: 0.50
+        cost_weight: 0.25
+        doctor_quality_weight: 0.25
+
+    # STEP 4 — Suggest doctor
+    recommend_doctor:
+      strategy: "experience + rating + specialization"
+      minimum_experience: 5
+      fallback: "next available doctor"
+
+    # STEP 5 — Generate plan for user
+    treatment_summary:
+      include:
+        - condition_name
+        - short_explanation
+        - treatment_span
+        - estimated_cost
+        - top_hospital
+        - doctor
+        - diet_plan
+        - lifestyle_plan
+        - aftercare_plan
+
+    # STEP 6 — Appointment decision logic
+    appointment_rules:
+      follow:
+        - must_confirm_before_booking
+        - payment_optional
+      time_constraints:
+        earliest: "08:00"
+        latest: "20:00"
+        slot_duration: "20 min"
+        allow_same_day: true
+
+
+# ---------------------------------------------------------------------
+# API BLUEPRINT — WHAT BACKEND WILL RETURN
+# ---------------------------------------------------------------------
+
+api_response_template:
+
+  patient:
+    name: ""
+    age: 0
+    sex: ""
+
+  detected_condition:
+    name: ""
+    severity_percent: 0
+    match_keywords: []
+
+  department: ""
+
+  recommended_hospital:
+    name: ""
+    rating: 0.0
+    cost_factor: 1.0
+    email: ""
+
+  recommended_doctor:
+    name: ""
+    experience_years: 0
+    specialization: ""
+
+  estimated_cost:
+    low: 0
+    high: 0
+
+  treatment_plan:
+    procedures: []
+    treatment_span: ""
+    diet_plan: []
+    lifestyle_plan: []
+    post_surgery_plan: []
+
+  appointment:
+    date: ""
+    time: ""
+    confirmation_required: true
+
+  status: "success"
+  message: "Generated by Clinical AI Engine"
+
+
+# ---------------------------------------------------------------------
+# SAMPLE API CALLS (TEST CASES)
+# ---------------------------------------------------------------------
+
+test_cases:
+
+  - id: TC001
+    description: "Appendicitis detection and treatment"
+    input_text: "Findings: inflamed appendix with RLQ pain"
+    expected_output:
+      condition: "Appendicitis"
+      department: "general_surgery"
+      recommended_hospital_rating_min: 4.3
+
+  - id: TC002
+    description: "Gallbladder stone detection"
+    input_text: "Gallstones with biliary colic"
+    expected_output:
+      condition: "Cholecystitis / Gallstones"
+      department: "gastroenterology"
+
+  - id: TC003
+    description: "Heart Attack (MI) detection"
+    input_text: "STEMI with severe chest pain and sweating"
+    expected_output:
+      condition: "Myocardial Infarction"
+      department: "cardiology"
+      red_flag_present: true
+
+  - id: TC004
+    description: "Kidney Stone detection"
+    input_text: "Flank pain with ureteric calculus"
+    expected_output:
+      condition: "Kidney Stones"
+      department: "urology"
+
+  - id: TC005
+    description: "Stroke detection"
+    input_text: "Slurred speech, facial droop, weakness"
+    expected_output:
+      condition: "Stroke (CVA)"
+      department: "neurology"
+
+
+# ---------------------------------------------------------------------
+# FUTURE EXPANSION (ENTERPRISE SCALABILITY PLANS)
+# ---------------------------------------------------------------------
+
+future_extensions:
+
+  - name: "Insurance Integration"
+    description: "Map treatment cost to insurance coverage percentages"
+
+  - name: "Real-time Doctor Availability"
+    description: "Fetch doctor timing via API and block slots live"
+
+  - name: "Ambulance & Emergency Routing"
+    description: "Integrate with nearest ambulance API"
+
+  - name: "Lab Test Recommendation Engine"
+    description: "Suggest tests based on detected condition"
+
+  - name: "Drug Interaction Checker"
+    description: "Warn user about medication conflicts"
+
+  - name: "AI Severity Refinement Model"
+    description: "Use NLP ML model for 0–100 severity scoring"
+
+  - name: "Multi-City Expansion"
+    description: "Add Mumbai, Delhi, Hyderabad, Chennai, Pune"
+
+  - name: "Doctor Chat Routing"
+    description: "Route patient to on-call teleconsultation"
+
 
 # ==========================================================
-# END OF rules.yaml
+# END OF rules.yaml (PART 10 / 10)
 # ==========================================================
