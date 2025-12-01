@@ -6,7 +6,11 @@ import streamlit as st
 import io, os, re, json, uuid
 from datetime import datetime, timedelta, date, time
 from typing import Dict, Any, List, Tuple
+<<<<<<< HEAD
 
+=======
+import pdfplumber
+>>>>>>> 1fbd7b5 (Fix: Add pdfminer.six dependency and trigger Streamlit rebuild)
 from PIL import Image
 import pdfplumber
 import docx2txt
@@ -314,4 +318,8 @@ END:VCALENDAR"""
     except:
         pass
 
+<<<<<<< HEAD
     st.success(f"Booking saved (ID: {booking_id})")
+=======
+    st.success(f"Booking saved (ID: {booking_id})")
+>>>>>>> 1fbd7b5 (Fix: Add pdfminer.six dependency and trigger Streamlit rebuild)
