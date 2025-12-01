@@ -1,14 +1,12 @@
-streamlit==1.32.0
+streamlit
 fpdf2
-pillow==10.2.0
-<<<<<<< HEAD
-pdfminer.six==20231228
-=======
->>>>>>> 1fbd7b51810c1de09b646a265bfac7a1dc2c12de
-pdfplumber==0.10.3
-python-docx==1.1.0
-docx2txt==0.8
-pytesseract==0.3.10
-pyyaml==6.0.1
-pandas==2.2.1
-numpy==1.26.4
+pdfplumber
+pillow
+python-docx
+docx2txt
+pyyaml
+pytesseract
+markdown-it-py
+rich
+pandas
+requests
