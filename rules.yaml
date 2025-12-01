@@ -1,111 +1,155 @@
 general_rules:
   red_flags:
-    - sepsis
-    - shock
-    - loss of consciousness
-    - acute abdomen
-    - chest pain
-    - uncontrolled bleeding
     - respiratory distress
     - unresponsiveness
     - cardiac arrest
-
-# ---------------------------------------------------------------------
-# INDIA CITY LIST + COST MULTIPLIERS
-# ---------------------------------------------------------------------
 city_cost_modifiers:
-  mumbai: 1.25
-  delhi: 1.20
-  new delhi: 1.20
-  gurgaon: 1.20
-  noida: 1.15
-  bengaluru: 1.20
   bangalore: 1.20
-  chennai: 1.15
-  hyderabad: 1.15
-  pune: 1.15
-  kolkata: 1.15
-  ahmedabad: 1.10
-  jaipur: 1.10
-  kochi: 1.10
-  trivandrum: 1.10
-  coimbatore: 1.05
-  madurai: 1.05
-  trichy: 1.05
-  tiruchirappalli: 1.05
-  surat: 1.05
-  indore: 1.05
-  bhopal: 1.05
-  lucknow: 1.05
-  kanpur: 1.05
-  chandigarh: 1.10
-  ludhiana: 1.05
-  amritsar: 1.05
-  nagpur: 1.05
-  vizag: 1.05
-  bhubaneswar: 1.05
-  ranchi: 1.00
-  patna: 1.00
-  guwahati: 1.00
-  mysuru: 1.00
-  vadodara: 1.05
-  nashik: 1.05
-  rajkot: 1.05
-  vellore: 1.05
-  salem: 1.00
   default: 1.00
-
-# ---------------------------------------------------------------------
-# INDIA HOSPITAL DIRECTORY
-# ---------------------------------------------------------------------
 hospitals:
-  mumbai:
-    - name: Kokilaben Hospital
-      email: appointments@kokilaben.in
-    - name: Nanavati Max
-      email: book@nanavatimax.in
-    - name: Jaslok Hospital
-      email: clinic@jaslokhospital.net
-
-  delhi:
-    - name: Max Saket
-      email: bookings@maxhealthcare.com
-    - name: Fortis Escorts Okhla
-      email: appointments@fortishealthcare.com
-
-  chennai:
-    - name: Apollo Greams Road
-      email: apollo.chennai@apollohospitals.com
-    - name: Fortis Malar
-      email: appointments.chennai@fortishealthcare.com
-    - name: MIOT International
-      email: book@miotinternational.com
-
-  bengaluru:
-    - name: Manipal Old Airport Road
+  bangalore:
+    - name: Manipal Hospital – Old Airport Road
       email: appointments.blr@manipalhospitals.com
-    - name: Aster CMI
-      email: bookings@astercmihospital.com
-    - name: Fortis Bannerghatta
+      rating: 4.7
+      cost_factor: 1.25
+      departments:
+        General Surgery:
+          - Dr. Karthik R
+          - Dr. Sanjay Pai
+        Gastroenterology:
+          - Dr. Surya V
+        Cardiology:
+          - Dr. Vishal A
+        Neurology:
+          - Dr. Anita S
+    - name: Aster CMI Hospital
+      email: bookings@astercmi.com
+      rating: 4.6
+      cost_factor: 1.20
+      departments:
+        General Surgery:
+          - Dr. Rajesh K
+        Emergency Medicine:
+          - Dr. Manoj T
+        Pulmonology:
+          - Dr. Kavya L
+        Orthopedics:
+          - Dr. Thomas George
+    - name: Fortis Hospital – Bannerghatta Road
       email: contact.bg@fortishealthcare.com
-
-  coimbatore:
-    - name: PSG Hospitals
-      email: psg.appt@psghospitals.com
-    - name: KMCH
-      email: book@kmchhospitals.com
-    - name: GKNM
-      email: appointments@gknmhospital.org
-
+      rating: 4.5
+      cost_factor: 1.18
+      departments:
+        Gastroenterology:
+          - Dr. Arun Prasad
+        Cardiology:
+          - Dr. Ahuja
+        General Surgery:
+          - Dr. Prakash M
+        Oncology:
+          - Dr. Ramesh S
+    - name: Apollo Hospital – Jayanagar
+      email: apollojay@apollohospitals.com
+      rating: 4.6
+      cost_factor: 1.22
+      departments:
+        General Surgery:
+          - Dr. Girish N
+        Orthopedics:
+          - Dr. Sameer S
+        Cardiology:
+          - Dr. Madhav H
+        Emergency Medicine:
+          - Dr. Latha V
+    - name: Sakra World Hospital
+      email: info@sakraworldhospital.com
+      rating: 4.4
+      cost_factor: 1.15
+      departments:
+        General Surgery:
+          - Dr. Ashwin Kumar
+        Gastroenterology:
+          - Dr. Deepak Mehta
+        Pulmonology:
+          - Dr. Adarsh R
+        Neurology:
+          - Dr. Vani K
+    - name: Columbia Asia Hospital – Hebbal
+      email: care.hebbal@columbiaasia.com
+      rating: 4.3
+      cost_factor: 1.12
+      departments:
+        Cardiology:
+          - Dr. Pradeep
+        Nephrology:
+          - Dr. Sunil Rao
+        General Surgery:
+          - Dr. Ravi Kumar
+        Gastroenterology:
+          - Dr. Harish G
+    - name: Cloudnine Hospital – Old Airport Road
+      email: info@cloudninecare.com
+      rating: 4.6
+      cost_factor: 1.10
+      departments:
+        Obstetrics:
+          - Dr. Shobha Gupta
+        Gynecology:
+          - Dr. Kavita M
+        Pediatrics:
+          - Dr. Asha M
+        Fertility:
+          - Dr. Ranjani B
+    - name: Narayana Multispeciality Hospital – HSR Layout
+      email: contact.hsr@nhhospitals.com
+      rating: 4.4
+      cost_factor: 1.08
+      departments:
+        General Surgery:
+          - Dr. Prasanna K
+        Cardiology:
+          - Dr. Naveen K
+        Orthopedics:
+          - Dr. Mahesh Rao
+        Neurology:
+          - Dr. Indira S
+    - name: BGS Global Hospital
+      email: info@bgsglobalhospital.com
+      rating: 4.5
+      cost_factor: 1.16
+      departments:
+        Liver Transplant:
+          - Dr. Ravi V
+        General Surgery:
+          - Dr. Sudhir U
+        Gastroenterology:
+          - Dr. Ajay Shetty
+        Emergency:
+          - Dr. Latha D
+    - name: Rainbow Children’s Hospital – Marathahalli
+      email: contact@rainbowhospitals.in
+      rating: 4.7
+      cost_factor: 1.12
+      departments:
+        Pediatrics:
+          - Dr. Niharika S
+        Neonatology:
+          - Dr. Vijay R
+        Pediatric Surgery:
+          - Dr. Harsha B
+        Emergency Pediatrics:
+          - Dr. Meera D
   default:
     - name: Accredited Tertiary Centre
       email: ""
-
-# ---------------------------------------------------------------------
-# DISEASE DATABASE (FULL LIST)
-# ---------------------------------------------------------------------
+      rating: 4.0
+      cost_factor: 1.00
+      departments: {}
 diseases:
 
+  # ==========================================================
+  # 1) Appendicitis
+  # ==========================================================
   - name: Appendicitis
     keywords:
       - appendix
@@ -124,10 +168,23 @@ diseases:
     recovery_recos:
       - rest for 2 weeks
       - avoid heavy lifting
-      - maintain light diet
       - monitor fever and pain
+    treatment_span: "Surgery 45–60 minutes | Hospital stay 1–2 days | Full recovery 2–4 weeks"
+    diet_plan:
+      - "Soft diet for first 48–72 hours"
+      - "Avoid oily/fried/spicy food for 1 week"
+      - "Increase water intake to 2–3 L/day"
+    lifestyle_plan:
+      - "Avoid lifting weight for 4 weeks"
+      - "Walk 10–20 min daily after 3rd day"
+    post_surgery_plan:
+      - "Keep wound dry for 3 days"
+      - "Watch for fever, redness, vomiting"
     cost_inr: [60000, 250000]
 
+  # ==========================================================
+  # 2) Cholecystitis / Gallstones
+  # ==========================================================
   - name: Cholecystitis / Gallstones
     keywords:
       - gallbladder
@@ -135,7 +192,6 @@ diseases:
       - biliary colic
       - gb stone
       - gallstone
-      - cholecystitis
     severity_rules:
       red_flags:
         - cholangitis
@@ -146,17 +202,29 @@ diseases:
       - ercp if bile duct stone
     recovery_recos:
       - low-fat diet
-      - return to work in 10–14 days
       - avoid fried food
+    treatment_span: "Surgery 60–90 minutes | Day-care or 1-day stay | Full recovery 10–14 days"
+    diet_plan:
+      - "Low-fat diet for 2 weeks"
+      - "Avoid dairy, cheese, fried snacks"
+      - "Drink >2L water daily"
+    lifestyle_plan:
+      - "Avoid heavy meals for 1 week"
+      - "Resume walking after 48 hrs"
+    post_surgery_plan:
+      - "Wound care"
+      - "Avoid lifting weights 3–4 weeks"
     cost_inr: [80000, 300000]
 
+  # ==========================================================
+  # 3) Acute Pancreatitis
+  # ==========================================================
   - name: Acute Pancreatitis
     keywords:
       - pancreatitis
       - epigastric pain
       - elevated lipase
       - acute pancreas
-      - amylase high
     severity_rules:
       red_flags:
         - necrotizing pancreas
@@ -168,17 +236,29 @@ diseases:
       - icu monitoring if severe
     recovery_recos:
       - avoid alcohol
-      - low-fat meals
       - hydration
+    treatment_span: "Hospital stay 3–7 days | Recovery 1–4 weeks depending on severity"
+    diet_plan:
+      - "Clear liquids then low-fat diet"
+      - "Avoid alcohol forever"
+      - "Eat small frequent meals"
+    lifestyle_plan:
+      - "Strict alcohol avoidance"
+      - "Hydrate 3–4 L/day"
+    post_surgery_plan:
+      - "Follow-up imaging if severe"
+      - "Monitor enzymes"
     cost_inr: [90000, 450000]
 
+  # ==========================================================
+  # 4) Intestinal Obstruction
+  # ==========================================================
   - name: Intestinal Obstruction
     keywords:
       - obstruction
       - bowel blockage
       - dilated loops
       - air-fluid levels
-      - vomiting bile
     severity_rules:
       red_flags:
         - strangulated hernia
@@ -190,14 +270,26 @@ diseases:
     recovery_recos:
       - gradual reintroduction of diet
       - avoid constipation
+    treatment_span: "Emergency surgery 1–3 hrs | ICU stay if severe | Full recovery 2–6 weeks"
+    diet_plan:
+      - "Liquid diet post-surgery"
+      - "Avoid high-fiber for first week"
+    lifestyle_plan:
+      - "Avoid straining during stools"
+      - "Increase hydration"
+    post_surgery_plan:
+      - "Monitor for infection"
+      - "Avoid heavy lifting 4–6 weeks"
     cost_inr: [100000, 500000]
 
+  # ==========================================================
+  # 5) Inguinal Hernia
+  # ==========================================================
   - name: Inguinal Hernia
     keywords:
       - inguinal hernia
       - groin bulge
       - hernioplasty
-      - mesh repair
     severity_rules:
       red_flags:
         - strangulation
@@ -208,13 +300,25 @@ diseases:
     recovery_recos:
       - light activity 2 weeks
       - avoid heavy lifting 4–6 weeks
+    treatment_span: "Surgery 45–90 min | Day-care or 1 day stay | Recovery 2–6 weeks"
+    diet_plan:
+      - "High-fiber diet to avoid constipation"
+      - "Hydration >2L/day"
+    lifestyle_plan:
+      - "Avoid strain, coughing fits"
+      - "Wear support belt if advised"
+    post_surgery_plan:
+      - "Wound care"
+      - "Avoid lifting weights"
     cost_inr: [60000, 200000]
 
+  # ==========================================================
+  # 6) Femoral Hernia
+  # ==========================================================
   - name: Femoral Hernia
     keywords:
       - femoral hernia
       - groin swelling
-      - thigh bulge
     severity_rules:
       red_flags:
         - strangulation
@@ -224,9 +328,19 @@ diseases:
       - laparoscopic repair
     recovery_recos:
       - avoid lifting
-      - early mobilisation
+    treatment_span: "Surgery 1–2 hrs | Recovery 3–6 weeks"
+    diet_plan:
+      - "Soft diet 2 days"
+      - "High-fiber after day 3"
+    lifestyle_plan:
+      - "Avoid lifting 6 weeks"
+    post_surgery_plan:
+      - "Watch for redness or fever"
     cost_inr: [70000, 220000]
 
+  # ==========================================================
+  # 7) Umbilical Hernia
+  # ==========================================================
   - name: Umbilical Hernia
     keywords:
       - umbilical hernia
@@ -240,8 +354,20 @@ diseases:
     recovery_recos:
       - avoid strain
       - wound care
+    treatment_span: "Surgery 30–60 minutes | Recovery 2–4 weeks"
+    diet_plan:
+      - "Soft diet for 48 hrs"
+      - "Increase fiber to avoid constipation"
+    lifestyle_plan:
+      - "Avoid lifting weights 4 weeks"
+    post_surgery_plan:
+      - "Keep dressing dry"
+      - "Watch for pain or fever"
     cost_inr: [50000, 180000]
 
+  # ==========================================================
+  # 8) Peritonitis
+  # ==========================================================
   - name: Peritonitis
     keywords:
       - peritonitis
@@ -259,14 +385,25 @@ diseases:
     recovery_recos:
       - hydration
       - nutrition support
+    treatment_span: "Emergency surgery | ICU stay may be needed | Recovery 3–8 weeks"
+    diet_plan:
+      - "IV fluids initially"
+      - "Soft diet after bowel function returns"
+    lifestyle_plan:
+      - "Avoid strenuous activity"
+    post_surgery_plan:
+      - "Monitor for fever, wound discharge"
     cost_inr: [120000, 600000]
 
+  # ==========================================================
+  # 9) GI Perforation
+  # ==========================================================
   - name: GI Perforation
     keywords:
       - perforation
       - air under diaphragm
-      - peritoneal signs
       - free air
+      - peritoneal signs
     severity_rules:
       red_flags:
         - severe sepsis
@@ -276,8 +413,19 @@ diseases:
     recovery_recos:
       - bowel rest
       - gradual diet
+    treatment_span: "Emergency surgery 2–4 hrs | ICU stay | Recovery 4–8 weeks"
+    diet_plan:
+      - "Liquid diet post-op"
+      - "Soft diet slowly"
+    lifestyle_plan:
+      - "Avoid lifting 6 weeks"
+    post_surgery_plan:
+      - "Monitor abdomen for distension"
     cost_inr: [150000, 700000]
 
+  # ==========================================================
+  # 10) Acute Gastroenteritis (Severe)
+  # ==========================================================
   - name: Acute Gastroenteritis (Severe)
     keywords:
       - gastroenteritis
@@ -295,8 +443,19 @@ diseases:
     recovery_recos:
       - hydration
       - oral rehydration
+    treatment_span: "Hospital stay 1–2 days | Full recovery 3–5 days"
+    diet_plan:
+      - "ORS every 4–6 hrs"
+      - "Banana, rice, curd, toast"
+    lifestyle_plan:
+      - "Avoid street food"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [20000, 60000]
 
+  # ==========================================================
+  # 11) Pneumonia
+  # ==========================================================
   - name: Pneumonia
     keywords:
       - pneumonia
@@ -317,8 +476,19 @@ diseases:
       - complete antibiotics course
       - steam inhalation
       - hydration and rest
+    treatment_span: "Recovery 7–14 days | Hospitalization if severe"
+    diet_plan:
+      - "Warm liquids"
+      - "High-protein diet"
+    lifestyle_plan:
+      - "Avoid cold exposure"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [30000, 150000]
 
+  # ==========================================================
+  # 12) COVID-19
+  # ==========================================================
   - name: COVID-19
     keywords:
       - covid
@@ -339,8 +509,19 @@ diseases:
       - home isolation for 7–10 days
       - maintain hydration
       - steam inhalation
+    treatment_span: "Recovery 5–14 days | ICU stay only in severe cases"
+    diet_plan:
+      - "Warm liquids, vitamin C"
+      - "High-protein meals"
+    lifestyle_plan:
+      - "Masking, distancing"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [20000, 200000]
 
+  # ==========================================================
+  # 13) Asthma
+  # ==========================================================
   - name: Asthma
     keywords:
       - asthma
@@ -360,8 +541,20 @@ diseases:
       - avoid dust and allergens
       - keep inhaler handy
       - regular follow-up
+    treatment_span: "Acute attack: 1–3 hrs | Full control: 1–4 weeks"
+    diet_plan:
+      - "Warm water"
+      - "Avoid cold drinks"
+    lifestyle_plan:
+      - "Avoid smoke, pollution"
+      - "Daily breathing exercises"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [20000, 100000]
 
+  # ==========================================================
+  # 14) COPD Exacerbation
+  # ==========================================================
   - name: COPD Exacerbation
     keywords:
       - copd
@@ -380,8 +573,20 @@ diseases:
     recovery_recos:
       - smoking cessation
       - breathing exercises
+    treatment_span: "Acute attack: 1–3 days | Full recovery 2–6 weeks"
+    diet_plan:
+      - "High-protein diet"
+      - "Warm fluids"
+    lifestyle_plan:
+      - "Avoid smoking"
+      - "Pulmonary rehab"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [40000, 180000]
 
+  # ==========================================================
+  # 15) Tuberculosis
+  # ==========================================================
   - name: Tuberculosis
     keywords:
       - tb
@@ -400,12 +605,23 @@ diseases:
     recovery_recos:
       - full 6-month course
       - nutrition support
+    treatment_span: "6–9 months of medication"
+    diet_plan:
+      - "High-protein foods"
+      - "Milk, eggs, dal"
+    lifestyle_plan:
+      - "Avoid smoking"
+      - "Regular follow-up"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [15000, 80000]
-
+  # ==========================================================
+  # 16) Pleural Effusion
+  # ==========================================================
   - name: Pleural Effusion
     keywords:
-      - fluid in lung
       - pleural effusion
+      - fluid in lung
       - blunting
       - thoracentesis
     severity_rules:
@@ -414,12 +630,22 @@ diseases:
         - severe breathlessness
     procedures:
       - fluid drainage
-      - antibiotics
+      - antibiotics if infected
     recovery_recos:
       - avoid exertion
       - follow-up xray
+    treatment_span: "Drainage procedure 30–45 min | Recovery 1–2 weeks"
+    diet_plan:
+      - "High-protein diet"
+    lifestyle_plan:
+      - "Avoid heavy activity"
+    post_surgery_plan:
+      - "Monitor for cough or fever"
     cost_inr: [30000, 120000]
 
+  # ==========================================================
+  # 17) Pulmonary Embolism
+  # ==========================================================
   - name: Pulmonary Embolism
     keywords:
       - pulmonary embolism
@@ -437,8 +663,19 @@ diseases:
     recovery_recos:
       - avoid long immobility
       - regular follow-up
+    treatment_span: "Hospital stay 3–7 days | Anticoagulants 3–6 months"
+    diet_plan:
+      - "Hydration"
+      - "Avoid alcohol"
+    lifestyle_plan:
+      - "Avoid sitting long hours"
+    post_surgery_plan:
+      - "Monitor leg swelling"
     cost_inr: [70000, 350000]
 
+  # ==========================================================
+  # 18) ARDS (Acute Respiratory Distress Syndrome)
+  # ==========================================================
   - name: ARDS
     keywords:
       - ards
@@ -453,8 +690,18 @@ diseases:
       - ventilatory support
     recovery_recos:
       - long-term rehab
+    treatment_span: "ICU stay 1–3 weeks | Recovery 2–3 months"
+    diet_plan:
+      - "High-calorie diet"
+    lifestyle_plan:
+      - "Pulmonary rehab"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [150000, 900000]
 
+  # ==========================================================
+  # 19) Influenza (Severe)
+  # ==========================================================
   - name: Influenza
     keywords:
       - influenza
@@ -470,8 +717,19 @@ diseases:
     recovery_recos:
       - hydration
       - rest 3–5 days
+    treatment_span: "Recovery 3–7 days"
+    diet_plan:
+      - "Warm fluids"
+      - "Soups, fruits"
+    lifestyle_plan:
+      - "Rest"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [10000, 50000]
 
+  # ==========================================================
+  # 20) Dengue Fever
+  # ==========================================================
   - name: Dengue Fever
     keywords:
       - dengue
@@ -491,8 +749,19 @@ diseases:
       - stay hydrated
       - avoid nsaids
       - bed rest 5–7 days
+    treatment_span: "Recovery 5–14 days | Severe cases 2–3 weeks"
+    diet_plan:
+      - "Papaya leaf extract (optional)"
+      - "Fluids"
+    lifestyle_plan:
+      - "Avoid mosquito bites"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [20000, 120000]
 
+  # ==========================================================
+  # 21) Typhoid Fever
+  # ==========================================================
   - name: Typhoid Fever
     keywords:
       - typhoid
@@ -509,8 +778,19 @@ diseases:
     recovery_recos:
       - light diet
       - full antibiotic course
+    treatment_span: "Recovery 7–21 days depending on severity"
+    diet_plan:
+      - "Soft, bland diet"
+      - "Avoid oily foods"
+    lifestyle_plan:
+      - "Rest for 1–2 weeks"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [15000, 80000]
 
+  # ==========================================================
+  # 22) Malaria
+  # ==========================================================
   - name: Malaria
     keywords:
       - malaria
@@ -528,8 +808,19 @@ diseases:
     recovery_recos:
       - rest
       - hydration
+    treatment_span: "Uncomplicated: 3–7 days | Severe: 1–3 weeks"
+    diet_plan:
+      - "High fluids"
+      - "Easy-to-digest meals"
+    lifestyle_plan:
+      - "Mosquito prevention"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [20000, 100000]
 
+  # ==========================================================
+  # 23) Leptospirosis
+  # ==========================================================
   - name: Leptospirosis
     keywords:
       - leptospirosis
@@ -546,8 +837,19 @@ diseases:
     recovery_recos:
       - electrolyte balance
       - rest
+    treatment_span: "Recovery 7–14 days | Severe 2–4 weeks"
+    diet_plan:
+      - "Hydration"
+      - "High-protein"
+    lifestyle_plan:
+      - "Avoid contaminated water"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [30000, 160000]
 
+  # ==========================================================
+  # 24) Chikungunya
+  # ==========================================================
   - name: Chikungunya
     keywords:
       - chikungunya
@@ -563,8 +865,18 @@ diseases:
     recovery_recos:
       - rest
       - hydration
+    treatment_span: "Acute phase: 5–14 days | Joint pain: weeks–months"
+    diet_plan:
+      - "Hydration"
+    lifestyle_plan:
+      - "Avoid mosquito bites"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [10000, 60000]
 
+  # ==========================================================
+  # 25) H1N1 Swine Flu
+  # ==========================================================
   - name: H1N1 Swine Flu
     keywords:
       - h1n1
@@ -580,8 +892,18 @@ diseases:
     recovery_recos:
       - rest
       - hydration
+    treatment_span: "Recovery 5–14 days"
+    diet_plan:
+      - "Soups, fruits"
+    lifestyle_plan:
+      - "Avoid cold exposure"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [20000, 150000]
 
+  # ==========================================================
+  # 26) Hypertension (High BP)
+  # ==========================================================
   - name: Hypertension
     keywords:
       - hypertension
@@ -600,8 +922,20 @@ diseases:
       - salt restriction
       - regular bp monitoring
       - stress management
+    treatment_span: "Requires lifelong control | Acute episode: 24–72 hrs"
+    diet_plan:
+      - "Low salt diet"
+      - "Avoid fried foods"
+    lifestyle_plan:
+      - "Daily walking"
+      - "Weight management"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [20000, 80000]
 
+  # ==========================================================
+  # 27) Hypertensive Emergency
+  # ==========================================================
   - name: Hypertensive Emergency
     keywords:
       - hypertensive emergency
@@ -619,8 +953,18 @@ diseases:
     recovery_recos:
       - bp control
       - diet and lifestyle
+    treatment_span: "ICU 1–3 days | BP control 2–6 weeks"
+    diet_plan:
+      - "Low salt"
+    lifestyle_plan:
+      - "Stress reduction"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [40000, 200000]
 
+  # ==========================================================
+  # 28) Coronary Artery Disease
+  # ==========================================================
   - name: Coronary Artery Disease
     keywords:
       - cad
@@ -633,13 +977,26 @@ diseases:
         - arrhythmia
         - heart failure
     procedures:
-      - ecg, echo
+      - ecg
+      - echo
       - angiography
     recovery_recos:
       - lifestyle modification
       - medications
+    treatment_span: "Stable CAD: months | After angioplasty: 2–6 weeks"
+    diet_plan:
+      - "Low-fat diet"
+      - "Avoid red meat"
+    lifestyle_plan:
+      - "Daily exercise"
+      - "Stop smoking"
+    post_surgery_plan:
+      - "Cardiac rehab"
     cost_inr: [60000, 300000]
 
+  # ==========================================================
+  # 29) Myocardial Infarction (Heart Attack)
+  # ==========================================================
   - name: Myocardial Infarction
     keywords:
       - myocardial infarction
@@ -658,8 +1015,18 @@ diseases:
     recovery_recos:
       - cardiac rehab
       - medication adherence
+    treatment_span: "Hospital 3–7 days | Rehab 6–12 weeks"
+    diet_plan:
+      - "Low cholesterol"
+    lifestyle_plan:
+      - "Cardiac rehab program"
+    post_surgery_plan:
+      - "Avoid exertion for 6 weeks"
     cost_inr: [150000, 900000]
 
+  # ==========================================================
+  # 30) Unstable Angina
+  # ==========================================================
   - name: Unstable Angina
     keywords:
       - unstable angina
@@ -675,8 +1042,17 @@ diseases:
     recovery_recos:
       - avoid exertion
       - medication compliance
+    treatment_span: "Hospital stay 1–3 days | Recovery 2–4 weeks"
+    diet_plan:
+      - "Low fat diet"
+    lifestyle_plan:
+      - "Avoid stress & heavy exertion"
+    post_surgery_plan:
+      - "Follow cardiology review"
     cost_inr: [70000, 300000]
-
+  # ==========================================================
+  # 31) Arrhythmia (General)
+  # ==========================================================
   - name: Arrhythmia (General)
     keywords:
       - arrhythmia
@@ -693,8 +1069,20 @@ diseases:
     recovery_recos:
       - avoid stimulants
       - regular monitoring
+    treatment_span: "Stabilization 24–72 hrs | Long-term management required"
+    diet_plan:
+      - "Avoid caffeine"
+      - "Low salt diet"
+    lifestyle_plan:
+      - "Stress reduction"
+      - "Adequate sleep"
+    post_surgery_plan:
+      - "Post-ablation care if applicable"
     cost_inr: [30000, 180000]
 
+  # ==========================================================
+  # 32) Atrial Fibrillation
+  # ==========================================================
   - name: Atrial Fibrillation
     keywords:
       - af
@@ -710,8 +1098,19 @@ diseases:
     recovery_recos:
       - blood thinners
       - monitoring
+    treatment_span: "Initial control: 2–5 days | Long-term monitoring required"
+    diet_plan:
+      - "Avoid alcohol and caffeine"
+    lifestyle_plan:
+      - "Daily walking"
+      - "Weight control"
+    post_surgery_plan:
+      - "Post-cardioversion monitoring"
     cost_inr: [40000, 200000]
 
+  # ==========================================================
+  # 33) Heart Failure
+  # ==========================================================
   - name: Heart Failure
     keywords:
       - heart failure
@@ -728,8 +1127,20 @@ diseases:
     recovery_recos:
       - salt restriction
       - fluid balance
+    treatment_span: "Hospital Stay: 3–7 days | Long-term management lifetime"
+    diet_plan:
+      - "Low sodium diet"
+      - "Limit fluid intake"
+    lifestyle_plan:
+      - "Daily walking"
+      - "Weight monitoring"
+    post_surgery_plan:
+      - "Medication review every 3 months"
     cost_inr: [60000, 300000]
 
+  # ==========================================================
+  # 34) Pericarditis
+  # ==========================================================
   - name: Pericarditis
     keywords:
       - pericarditis
@@ -745,8 +1156,18 @@ diseases:
     recovery_recos:
       - rest
       - medication adherence
+    treatment_span: "Recovery 2–6 weeks | Severe cases require drainage"
+    diet_plan:
+      - "Anti-inflammatory foods"
+    lifestyle_plan:
+      - "Avoid strenuous activity"
+    post_surgery_plan:
+      - "Follow-up echo"
     cost_inr: [30000, 120000]
 
+  # ==========================================================
+  # 35) Myocarditis
+  # ==========================================================
   - name: Myocarditis
     keywords:
       - myocarditis
@@ -761,8 +1182,18 @@ diseases:
       - monitoring
     recovery_recos:
       - light activity
+    treatment_span: "Recovery 4–12 weeks depending on severity"
+    diet_plan:
+      - "Low sodium diet"
+    lifestyle_plan:
+      - "Avoid strenuous exercise"
+    post_surgery_plan:
+      - "Follow-up ECG & Echo"
     cost_inr: [50000, 250000]
 
+  # ==========================================================
+  # 36) Deep Vein Thrombosis (DVT)
+  # ==========================================================
   - name: Deep Vein Thrombosis
     keywords:
       - dvt
@@ -778,8 +1209,18 @@ diseases:
     recovery_recos:
       - avoid long sitting
       - compression stockings
+    treatment_span: "Treatment 3–6 months"
+    diet_plan:
+      - "Hydration"
+    lifestyle_plan:
+      - "Avoid long travel"
+    post_surgery_plan:
+      - "INR monitoring for blood thinners"
     cost_inr: [30000, 120000]
 
+  # ==========================================================
+  # 37) Peripheral Artery Disease (PAD)
+  # ==========================================================
   - name: Peripheral Artery Disease
     keywords:
       - pad
@@ -795,8 +1236,18 @@ diseases:
     recovery_recos:
       - walking therapy
       - smoking cessation
+    treatment_span: "Lifestyle therapy: months | Surgery: 2–6 weeks recovery"
+    diet_plan:
+      - "Low cholesterol"
+    lifestyle_plan:
+      - "Daily walking program"
+    post_surgery_plan:
+      - "Wound care if operated"
     cost_inr: [50000, 250000]
 
+  # ==========================================================
+  # 38) Aortic Dissection
+  # ==========================================================
   - name: Aortic Dissection
     keywords:
       - aortic dissection
@@ -811,8 +1262,18 @@ diseases:
       - icu care
     recovery_recos:
       - strict bp control
+    treatment_span: "Emergency surgery 4–8 hrs | ICU 3–10 days | Full recovery 6–12 weeks"
+    diet_plan:
+      - "Low salt"
+    lifestyle_plan:
+      - "Life-long BP control"
+    post_surgery_plan:
+      - "Regular CT follow-ups"
     cost_inr: [300000, 1500000]
 
+  # ==========================================================
+  # 39) Pericardial Effusion
+  # ==========================================================
   - name: Pericardial Effusion
     keywords:
       - pericardial effusion
@@ -825,8 +1286,18 @@ diseases:
       - drainage
     recovery_recos:
       - follow-up echo
+    treatment_span: "Recovery 2–4 weeks after drainage"
+    diet_plan:
+      - "Light diet"
+    lifestyle_plan:
+      - "Avoid stress"
+    post_surgery_plan:
+      - "Wound care"
     cost_inr: [50000, 180000]
 
+  # ==========================================================
+  # 40) Chest Pain (Undifferentiated)
+  # ==========================================================
   - name: Chest Pain (Undifferentiated)
     keywords:
       - chest pain
@@ -843,8 +1314,18 @@ diseases:
       - cardiac enzymes
     recovery_recos:
       - avoid exertion
+    treatment_span: "Evaluation 2–6 hrs | Recovery depends on cause"
+    diet_plan:
+      - "Low fat diet"
+    lifestyle_plan:
+      - "Stress management"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [20000, 90000]
 
+  # ==========================================================
+  # 41) Stroke (CVA)
+  # ==========================================================
   - name: Stroke (CVA)
     keywords:
       - stroke
@@ -864,8 +1345,20 @@ diseases:
     recovery_recos:
       - rehab therapy
       - bp & sugar control
+    treatment_span: "Emergency treatment 0–4.5 hrs | Rehab 4–12 weeks"
+    diet_plan:
+      - "Low salt diet"
+      - "Balanced nutrition"
+    lifestyle_plan:
+      - "Daily physiotherapy"
+      - "Blood pressure control"
+    post_surgery_plan:
+      - "Constant rehab follow-up"
     cost_inr: [120000, 600000]
 
+  # ==========================================================
+  # 42) TIA (Transient Ischemic Attack)
+  # ==========================================================
   - name: TIA (Transient Ischemic Attack)
     keywords:
       - tia
@@ -879,8 +1372,18 @@ diseases:
       - carotid evaluation
     recovery_recos:
       - lifestyle modification
+    treatment_span: "Recovery 24–72 hrs | Risk reduction therapy lifelong"
+    diet_plan:
+      - "Low cholesterol diet"
+    lifestyle_plan:
+      - "Exercise regularly"
+    post_surgery_plan:
+      - "Follow cardiology advice"
     cost_inr: [30000, 120000]
 
+  # ==========================================================
+  # 43) Seizure / Epilepsy
+  # ==========================================================
   - name: Seizure / Epilepsy
     keywords:
       - seizure
@@ -897,8 +1400,20 @@ diseases:
     recovery_recos:
       - medication adherence
       - avoid triggers
+    treatment_span: "Acute control 24–48 hrs | Long-term therapy needed"
+    diet_plan:
+      - "Regular meals"
+      - "Avoid alcohol"
+    lifestyle_plan:
+      - "Adequate sleep"
+      - "Avoid flashing lights"
+    post_surgery_plan:
+      - "If post-surgery, wound care + neuro follow-up"
     cost_inr: [30000, 150000]
 
+  # ==========================================================
+  # 44) Status Epilepticus
+  # ==========================================================
   - name: Status Epilepticus
     keywords:
       - continuous seizure
@@ -912,8 +1427,18 @@ diseases:
       - icu care
     recovery_recos:
       - monitoring
+    treatment_span: "ICU 1–3 days | Neurological recovery varies"
+    diet_plan:
+      - "Soft diet after stabilization"
+    lifestyle_plan:
+      - "Avoid seizure triggers"
+    post_surgery_plan:
+      - "Regular neurology follow-up"
     cost_inr: [100000, 400000]
 
+  # ==========================================================
+  # 45) Meningitis
+  # ==========================================================
   - name: Meningitis
     keywords:
       - meningitis
@@ -930,8 +1455,18 @@ diseases:
     recovery_recos:
       - hydration
       - rest
+    treatment_span: "Recovery 7–21 days"
+    diet_plan:
+      - "Soft diet"
+      - "Hydration"
+    lifestyle_plan:
+      - "Avoid bright lights"
+    post_surgery_plan:
+      - "Neurological monitoring"
     cost_inr: [80000, 350000]
-
+  # ==========================================================
+  # 46) Encephalitis
+  # ==========================================================
   - name: Encephalitis
     keywords:
       - encephalitis
@@ -946,8 +1481,18 @@ diseases:
       - icu care
     recovery_recos:
       - rehab therapy
+    treatment_span: "ICU 3–10 days | Recovery 3–12 weeks"
+    diet_plan:
+      - "Soft, high-calorie diet"
+    lifestyle_plan:
+      - "Cognitive rehab"
+    post_surgery_plan:
+      - "Neuro follow-up"
     cost_inr: [120000, 500000]
 
+  # ==========================================================
+  # 47) Brain Tumor (General)
+  # ==========================================================
   - name: Brain Tumor (General)
     keywords:
       - brain tumor
@@ -964,8 +1509,18 @@ diseases:
     recovery_recos:
       - radiotherapy/chemo (if needed)
       - rehab
+    treatment_span: "Surgery 4–8 hrs | Full recovery 6–16 weeks"
+    diet_plan:
+      - "High protein"
+    lifestyle_plan:
+      - "Avoid driving initially"
+    post_surgery_plan:
+      - "Wound care + periodic MRI"
     cost_inr: [200000, 1500000]
 
+  # ==========================================================
+  # 48) Migraine
+  # ==========================================================
   - name: Migraine
     keywords:
       - migraine
@@ -984,8 +1539,20 @@ diseases:
       - avoid triggers
       - stay hydrated
       - maintain sleep schedule
+    treatment_span: "Attack: 4–72 hrs | Prevention lifelong"
+    diet_plan:
+      - "Avoid caffeine"
+      - "Regular meals"
+    lifestyle_plan:
+      - "Sleep hygiene"
+      - "Stress management"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [10000, 40000]
 
+  # ==========================================================
+  # 49) Tension Headache
+  # ==========================================================
   - name: Tension Headache
     keywords:
       - tension headache
@@ -1000,8 +1567,18 @@ diseases:
     recovery_recos:
       - hydration
       - relaxation therapy
+    treatment_span: "Attack 1–24 hrs | Recurrence depends on stress"
+    diet_plan:
+      - "Hydration"
+    lifestyle_plan:
+      - "Yoga and relaxation"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [5000, 20000]
 
+  # ==========================================================
+  # 50) Cluster Headache
+  # ==========================================================
   - name: Cluster Headache
     keywords:
       - cluster headache
@@ -1015,8 +1592,18 @@ diseases:
       - triptans
     recovery_recos:
       - trigger avoidance
+    treatment_span: "Cluster cycle: weeks–months"
+    diet_plan:
+      - "Avoid alcohol"
+    lifestyle_plan:
+      - "Adequate sleep"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [15000, 60000]
 
+  # ==========================================================
+  # 51) Vertigo (Peripheral / BPPV)
+  # ==========================================================
   - name: Vertigo (Peripheral)
     keywords:
       - vertigo
@@ -1032,8 +1619,18 @@ diseases:
       - epley maneuver
     recovery_recos:
       - slow movements
+    treatment_span: "Improvement 1–3 days | Full recovery 1–4 weeks"
+    diet_plan:
+      - "Hydration"
+    lifestyle_plan:
+      - "Avoid sudden head movements"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [10000, 40000]
 
+  # ==========================================================
+  # 52) Bell's Palsy
+  # ==========================================================
   - name: Bell's Palsy
     keywords:
       - bells palsy
@@ -1047,8 +1644,18 @@ diseases:
       - physiotherapy
     recovery_recos:
       - facial exercises
+    treatment_span: "Recovery 2–6 weeks (may extend 3–6 months)"
+    diet_plan:
+      - "Normal diet"
+    lifestyle_plan:
+      - "Eye care with lubrication"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [20000, 80000]
 
+  # ==========================================================
+  # 53) Multiple Sclerosis
+  # ==========================================================
   - name: Multiple Sclerosis
     keywords:
       - multiple sclerosis
@@ -1064,8 +1671,19 @@ diseases:
       - immunotherapy
     recovery_recos:
       - physiotherapy
+    treatment_span: "Chronic disease | Relapse recovery 2–8 weeks"
+    diet_plan:
+      - "High fiber"
+      - "Vitamin D rich foods"
+    lifestyle_plan:
+      - "Daily physiotherapy"
+    post_surgery_plan:
+      - "Routine neuro follow-up"
     cost_inr: [200000, 1200000]
 
+  # ==========================================================
+  # 54) Parkinson’s Disease
+  # ==========================================================
   - name: Parkinson’s Disease
     keywords:
       - parkinson
@@ -1080,8 +1698,18 @@ diseases:
     recovery_recos:
       - physiotherapy
       - fall precautions
+    treatment_span: "Chronic lifelong therapy"
+    diet_plan:
+      - "High fiber diet"
+    lifestyle_plan:
+      - "Balance and gait training"
+    post_surgery_plan:
+      - "Post-DBS programming (if surgery done)"
     cost_inr: [30000, 150000]
 
+  # ==========================================================
+  # 55) Peripheral Neuropathy
+  # ==========================================================
   - name: Peripheral Neuropathy
     keywords:
       - neuropathy
@@ -1095,8 +1723,18 @@ diseases:
     recovery_recos:
       - vitamin therapy
       - sugar control
+    treatment_span: "Recovery 4–12 weeks | Chronic in diabetics"
+    diet_plan:
+      - "Vitamin B12 rich foods"
+    lifestyle_plan:
+      - "Foot care"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [15000, 70000]
 
+  # ==========================================================
+  # 56) Carpal Tunnel Syndrome
+  # ==========================================================
   - name: Carpal Tunnel Syndrome
     keywords:
       - carpal tunnel
@@ -1110,8 +1748,18 @@ diseases:
       - surgery if severe
     recovery_recos:
       - ergonomic changes
+    treatment_span: "Splint recovery: 2–6 weeks | Post-surgery: 2–8 weeks"
+    diet_plan:
+      - "Normal diet"
+    lifestyle_plan:
+      - "Ergonomic workspace"
+    post_surgery_plan:
+      - "Avoid strain for 3–6 weeks"
     cost_inr: [25000, 120000]
 
+  # ==========================================================
+  # 57) Lumbar Disc Herniation
+  # ==========================================================
   - name: Lumbar Disc Herniation
     keywords:
       - lumbar disc
@@ -1130,8 +1778,18 @@ diseases:
     recovery_recos:
       - core strengthening
       - avoid lifting
+    treatment_span: "Physio: 4–8 weeks | Surgery recovery: 4–12 weeks"
+    diet_plan:
+      - "Calcium-rich foods"
+    lifestyle_plan:
+      - "Avoid bending & lifting"
+    post_surgery_plan:
+      - "Spine precautions 6–12 weeks"
     cost_inr: [80000, 300000]
 
+  # ==========================================================
+  # 58) Cervical Spondylosis
+  # ==========================================================
   - name: Cervical Spondylosis
     keywords:
       - cervical spondylosis
@@ -1145,4 +1803,1438 @@ diseases:
       - traction
     recovery_recos:
       - posture correction
+    treatment_span: "Recovery 4–12 weeks with physiotherapy"
+    diet_plan:
+      - "Vitamin D and calcium"
+    lifestyle_plan:
+      - "Posture correction"
+    post_surgery_plan:
+      - "N/A"
     cost_inr: [20000, 90000]
+
+  # ==========================================================
+  # 59) Osteoarthritis
+  # ==========================================================
+  - name: Osteoarthritis
+    keywords:
+      - osteoarthritis
+      - joint pain
+      - knee pain
+      - degeneration
+    severity_rules:
+      red_flags:
+        - severe immobility
+    procedures:
+      - analgesics
+      - physiotherapy
+      - joint replacement if severe
+    recovery_recos:
+      - weight loss
+      - strengthening exercises
+    treatment_span: "Chronic | Post-surgery 6–12 weeks"
+    diet_plan:
+      - "Anti-inflammatory diet"
+    lifestyle_plan:
+      - "Daily walking 30 minutes"
+    post_surgery_plan:
+      - "Rehab for 6–12 weeks (TKA/THA)"
+    cost_inr: [20000, 300000]
+
+  # ==========================================================
+  # 60) Rheumatoid Arthritis
+  # ==========================================================
+  - name: Rheumatoid Arthritis
+    keywords:
+      - rheumatoid arthritis
+      - ra
+      - autoimmune joint pain
+    severity_rules:
+      red_flags:
+        - severe deformity
+    procedures:
+      - dmards
+      - steroids (flare)
+    recovery_recos:
+      - physiotherapy
+    treatment_span: "Chronic lifelong therapy | Flare recovery 2–6 weeks"
+    diet_plan:
+      - "Anti-inflammatory foods"
+    lifestyle_plan:
+      - "Hand exercises"
+    post_surgery_plan:
+      - "Post-joint surgery rehab"
+    cost_inr: [30000, 200000]
+  # ==========================================================
+  # 61) Gout
+  # ==========================================================
+  - name: Gout
+    keywords:
+      - gout
+      - uric acid
+      - podagra
+      - joint swelling
+    severity_rules:
+      red_flags:
+        - severe swelling
+        - fever with joint pain
+    procedures:
+      - uric acid control
+      - anti-inflammatory medication
+    recovery_recos:
+      - hydration
+      - reduce red meat
+    treatment_span: "Flare recovery 3–14 days | Long-term control lifelong"
+    diet_plan:
+      - "Avoid red meat"
+      - "Avoid alcohol"
+      - "Hydrate 3–4 L/day"
+    lifestyle_plan:
+      - "Weight reduction"
+    post_surgery_plan:
+      - "N/A"
+    cost_inr: [15000, 60000]
+
+  # ==========================================================
+  # 62) Kidney Stones (Renal Calculi)
+  # ==========================================================
+  - name: Kidney Stones
+    keywords:
+      - kidney stone
+      - renal calculi
+      - flank pain
+      - ureteric stone
+    severity_rules:
+      red_flags:
+        - severe obstruction
+        - infection with stone
+    procedures:
+      - pain control
+      - hydration
+      - lithotripsy or ureteroscopy if needed
+    recovery_recos:
+      - drink 3–4 L water
+      - avoid high-oxalate foods
+    treatment_span: "Small stones: 1–3 weeks | Post-lithotripsy recovery: 3–7 days"
+    diet_plan:
+      - "Low oxalate diet"
+      - "Increase citrate intake"
+    lifestyle_plan:
+      - "Hydration daily"
+    post_surgery_plan:
+      - "Strain urine to collect fragments"
+    cost_inr: [30000, 200000]
+
+  # ==========================================================
+  # 63) Urinary Tract Infection (UTI)
+  # ==========================================================
+  - name: Urinary Tract Infection
+    keywords:
+      - uti
+      - infection urine
+      - burning urination
+      - dysuria
+    severity_rules:
+      red_flags:
+        - fever with flank pain
+        - sepsis
+    procedures:
+      - antibiotics
+      - hydration
+    recovery_recos:
+      - cranberry extract
+      - hydration
+    treatment_span: "Uncomplicated UTI: 3–5 days | Complicated: 7–14 days"
+    diet_plan:
+      - "Hydrate 2–3 L/day"
+    lifestyle_plan:
+      - "Hygiene practices"
+    post_surgery_plan:
+      - "N/A"
+    cost_inr: [5000, 20000]
+
+  # ==========================================================
+  # 64) Pyelonephritis
+  # ==========================================================
+  - name: Pyelonephritis
+    keywords:
+      - pyelonephritis
+      - kidney infection
+      - flank pain fever
+    severity_rules:
+      red_flags:
+        - sepsis
+        - dehydration
+    procedures:
+      - iv antibiotics
+      - hydration
+    recovery_recos:
+      - rest
+    treatment_span: "Recovery 7–21 days"
+    diet_plan:
+      - "Hydration"
+    lifestyle_plan:
+      - "Avoid alcohol"
+    post_surgery_plan:
+      - "N/A"
+    cost_inr: [20000, 120000]
+
+  # ==========================================================
+  # 65) Prostatitis
+  # ==========================================================
+  - name: Prostatitis
+    keywords:
+      - prostatitis
+      - prostate infection
+      - urinary frequency
+    severity_rules:
+      red_flags:
+        - sepsis
+    procedures:
+      - antibiotics
+      - pain management
+    recovery_recos:
+      - warm baths
+      - hydration
+    treatment_span: "Acute: 2–6 weeks | Chronic: months"
+    diet_plan:
+      - "Avoid alcohol"
+      - "Avoid spicy foods"
+    lifestyle_plan:
+      - "Warm sitz baths"
+    post_surgery_plan:
+      - "N/A"
+    cost_inr: [15000, 60000]
+
+  # ==========================================================
+  # 66) BPH (Benign Prostate Enlargement)
+  # ==========================================================
+  - name: BPH
+    keywords:
+      - bph
+      - prostate enlargement
+      - weak urine stream
+    severity_rules:
+      red_flags:
+        - acute retention
+    procedures:
+      - medication
+      - TURP if severe
+    recovery_recos:
+      - avoid caffeine
+    treatment_span: "Medication: ongoing | Post-TURP: recovery 2–6 weeks"
+    diet_plan:
+      - "Low caffeine"
+    lifestyle_plan:
+      - "Timed voiding"
+    post_surgery_plan:
+      - "Avoid heavy lifting 4 weeks"
+    cost_inr: [30000, 150000]
+
+  # ==========================================================
+  # 67) Testicular Torsion
+  # ==========================================================
+  - name: Testicular Torsion
+    keywords:
+      - scrotal pain
+      - torsion
+      - testicular torsion
+    severity_rules:
+      red_flags:
+        - severe pain
+        - absent blood flow
+    procedures:
+      - emergency detorsion surgery
+    recovery_recos:
+      - scrotal support
+    treatment_span: "Urgency: surgery within 6 hours | Recovery: 2–4 weeks"
+    diet_plan:
+      - "Normal diet"
+    lifestyle_plan:
+      - "Avoid sports 4 weeks"
+    post_surgery_plan:
+      - "Scrotal support"
+    cost_inr: [50000, 200000]
+
+  # ==========================================================
+  # 68) Epididymitis
+  # ==========================================================
+  - name: Epididymitis
+    keywords:
+      - epididymitis
+      - testicular pain
+      - scrotal swelling
+    severity_rules:
+      red_flags:
+        - fever
+        - severe swelling
+    procedures:
+      - antibiotics
+      - scrotal elevation
+    recovery_recos:
+      - cold packs
+    treatment_span: "Recovery 1–4 weeks"
+    diet_plan:
+      - "Hydration"
+    lifestyle_plan:
+      - "Avoid sex until recovery"
+    post_surgery_plan:
+      - "N/A"
+    cost_inr: [10000, 50000]
+
+  # ==========================================================
+  # 69) PCOS / PCOD
+  # ==========================================================
+  - name: PCOS
+    keywords:
+      - pcos
+      - pcod
+      - irregular periods
+      - ovarian cyst
+    severity_rules:
+      red_flags:
+        - excessive bleeding
+    procedures:
+      - hormonal therapy
+      - lifestyle modification
+    recovery_recos:
+      - weight loss
+      - diet changes
+    treatment_span: "Chronic | Hormonal balance 8–12 weeks"
+    diet_plan:
+      - "Low GI diet"
+      - "Avoid sugar"
+    lifestyle_plan:
+      - "Daily exercise"
+    post_surgery_plan:
+      - "N/A"
+    cost_inr: [20000, 100000]
+
+  # ==========================================================
+  # 70) Ovarian Cyst (Symptomatic)
+  # ==========================================================
+  - name: Ovarian Cyst
+    keywords:
+      - ovarian cyst
+      - pelvic pain
+      - cyst
+    severity_rules:
+      red_flags:
+        - torsion
+        - rupture
+    procedures:
+      - pain management
+      - cystectomy if severe
+    recovery_recos:
+      - rest
+      - avoid heavy activity
+    treatment_span: "Small cyst: resolve in weeks | Post-surgery: 2–6 weeks"
+    diet_plan:
+      - "Balanced diet"
+    lifestyle_plan:
+      - "Avoid strenuous activity"
+    post_surgery_plan:
+      - "Follow-up ultrasound"
+    cost_inr: [30000, 200000]
+
+  # ==========================================================
+  # 71) Endometriosis
+  # ==========================================================
+  - name: Endometriosis
+    keywords:
+      - endometriosis
+      - pelvic pain
+      - dysmenorrhea
+      - infertility
+    severity_rules:
+      red_flags:
+        - severe chronic pelvic pain
+        - bowel or bladder symptoms
+    procedures:
+      - hormonal therapy
+      - laparoscopic excision
+    recovery_recos:
+      - heat therapy
+      - regular exercise
+    treatment_span: "Hormonal therapy 8–12 weeks | Post-surgery: 2–6 weeks"
+    diet_plan:
+      - "Anti-inflammatory diet"
+      - "Reduce red meat"
+    lifestyle_plan:
+      - "Yoga & stretching"
+    post_surgery_plan:
+      - "Avoid intercourse 2–4 weeks"
+    cost_inr: [50000, 300000]
+
+  # ==========================================================
+  # 72) Pelvic Inflammatory Disease (PID)
+  # ==========================================================
+  - name: Pelvic Inflammatory Disease
+    keywords:
+      - pid
+      - pelvic infection
+      - pelvic pain
+      - vaginal discharge
+    severity_rules:
+      red_flags:
+        - high fever
+        - abscess formation
+    procedures:
+      - antibiotics
+      - drainage if abscess
+    recovery_recos:
+      - avoid intercourse until cured
+    treatment_span: "Recovery 7–21 days"
+    diet_plan:
+      - "Hydration"
+    lifestyle_plan:
+      - "Safe sexual practices"
+    post_surgery_plan:
+      - "N/A"
+    cost_inr: [15000, 80000]
+
+  # ==========================================================
+  # 73) Uterine Fibroids
+  # ==========================================================
+  - name: Uterine Fibroids
+    keywords:
+      - fibroid
+      - leiomyoma
+      - heavy periods
+      - pelvic mass
+    severity_rules:
+      red_flags:
+        - severe anemia
+        - rapid growth
+    procedures:
+      - medication
+      - myomectomy
+      - hysterectomy if severe
+    recovery_recos:
+      - iron supplements
+    treatment_span: "Medication: months | Surgery: recovery 4–8 weeks"
+    diet_plan:
+      - "Iron-rich diet"
+    lifestyle_plan:
+      - "Weight management"
+    post_surgery_plan:
+      - "Avoid heavy lifting 6 weeks"
+    cost_inr: [30000, 250000]
+
+  # ==========================================================
+  # 74) Hyperthyroidism
+  # ==========================================================
+  - name: Hyperthyroidism
+    keywords:
+      - hyperthyroidism
+      - low tsh
+      - high t3 t4
+      - overactive thyroid
+    severity_rules:
+      red_flags:
+        - thyroid storm
+    procedures:
+      - antithyroid drugs
+      - beta blockers
+    recovery_recos:
+      - regular blood tests
+    treatment_span: "Recovery 4–12 weeks | Ongoing therapy may be required"
+    diet_plan:
+      - "Avoid excess iodine"
+    lifestyle_plan:
+      - "Stress reduction"
+    post_surgery_plan:
+      - "N/A"
+    cost_inr: [20000, 80000]
+
+  # ==========================================================
+  # 75) Hypothyroidism
+  # ==========================================================
+  - name: Hypothyroidism
+    keywords:
+      - hypothyroidism
+      - high tsh
+      - underactive thyroid
+    severity_rules:
+      red_flags:
+        - myxedema coma
+    procedures:
+      - thyroxine therapy
+    recovery_recos:
+      - routine thyroid check
+    treatment_span: "Recovery 4–12 weeks | Lifelong therapy usually needed"
+    diet_plan:
+      - "Iodine-rich diet"
+    lifestyle_plan:
+      - "Daily exercise"
+    post_surgery_plan:
+      - "N/A"
+    cost_inr: [10000, 30000]
+  # ==========================================================
+  # 76) Anemia (Moderate to Severe)
+  # ==========================================================
+  - name: Anemia
+    keywords:
+      - anemia
+      - low hemoglobin
+      - fatigue
+    severity_rules:
+      red_flags:
+        - hb < 7
+        - severe breathlessness
+    procedures:
+      - iron therapy
+      - blood transfusion if severe
+    recovery_recos:
+      - iron supplements
+    treatment_span: "Recovery 4–12 weeks"
+    diet_plan:
+      - "Iron-rich diet"
+      - "Vitamin C rich foods"
+    lifestyle_plan:
+      - "Avoid heavy exertion"
+    post_surgery_plan:
+      - "N/A"
+    cost_inr: [5000, 60000]
+
+  # ==========================================================
+  # 77) Dehydration (Moderate to Severe)
+  # ==========================================================
+  - name: Dehydration
+    keywords:
+      - dehydration
+      - dry mouth
+      - weakness
+      - low bp
+    severity_rules:
+      red_flags:
+        - severe dehydration
+        - shock
+    procedures:
+      - iv fluids
+      - electrolyte correction
+    recovery_recos:
+      - oral hydration
+    treatment_span: "Recovery 1–3 days"
+    diet_plan:
+      - "ORS"
+      - "Hydration 3–4 L/day"
+    lifestyle_plan:
+      - "Avoid heat exposure"
+    post_surgery_plan:
+      - "N/A"
+    cost_inr: [2000, 20000]
+
+  # ==========================================================
+  # 78) Heat Stroke / Heat Exhaustion
+  # ==========================================================
+  - name: Heat Stroke
+    keywords:
+      - heat stroke
+      - heat exhaustion
+      - high temperature
+    severity_rules:
+      red_flags:
+        - confusion
+        - shock
+    procedures:
+      - rapid cooling
+      - iv fluids
+    recovery_recos:
+      - cool environment
+    treatment_span: "Recovery 1–7 days"
+    diet_plan:
+      - "Hydration & electrolytes"
+    lifestyle_plan:
+      - "Avoid sun exposure"
+    post_surgery_plan:
+      - "N/A"
+    cost_inr: [5000, 30000]
+
+  # ==========================================================
+  # 79) Allergy / Anaphylaxis (Severe)
+  # ==========================================================
+  - name: Anaphylaxis
+    keywords:
+      - allergy
+      - anaphylaxis
+      - throat swelling
+      - rash with breathing difficulty
+    severity_rules:
+      red_flags:
+        - airway swelling
+        - shock
+    procedures:
+      - epinephrine
+      - oxygen
+      - iv steroids
+    recovery_recos:
+      - avoid trigger
+    treatment_span: "Emergency care 1–24 hours | Recovery 1–3 days"
+    diet_plan:
+      - "Avoid allergen"
+    lifestyle_plan:
+      - "Carry epipen"
+    post_surgery_plan:
+      - "N/A"
+    cost_inr: [5000, 50000]
+
+  # ==========================================================
+  # 80) Severe Food Poisoning
+  # ==========================================================
+  - name: Severe Food Poisoning
+    keywords:
+      - food poisoning
+      - vomiting
+      - diarrhea
+      - stomach cramps
+    severity_rules:
+      red_flags:
+        - severe dehydration
+        - bloody stool
+    procedures:
+      - iv fluids
+      - antibiotics if bacterial
+    recovery_recos:
+      - hydration
+      - probiotics
+    treatment_span: "Recovery 1–5 days"
+    diet_plan:
+      - "Soft diet"
+    lifestyle_plan:
+      - "Avoid oily foods"
+    post_surgery_plan:
+      - "N/A"
+    cost_inr: [3000, 30000]
+
+  # ==========================================================
+  # 81) Gastritis (Severe)
+  # ==========================================================
+  - name: Gastritis (Severe)
+    keywords:
+      - gastritis
+      - stomach inflammation
+      - epigastric burning
+      - vomiting blood
+    severity_rules:
+      red_flags:
+        - hematemesis
+        - severe dehydration
+    procedures:
+      - antacids
+      - ppi therapy
+    recovery_recos:
+      - avoid spicy food
+      - bland diet
+    treatment_span: "Recovery 3–10 days"
+    diet_plan:
+      - "Soft food"
+      - "Avoid caffeine"
+    lifestyle_plan:
+      - "Stress reduction"
+    post_surgery_plan:
+      - "N/A"
+    cost_inr: [3000, 30000]
+
+  # ==========================================================
+  # 82) Peptic Ulcer Disease
+  # ==========================================================
+  - name: Peptic Ulcer Disease
+    keywords:
+      - ulcer
+      - gastric ulcer
+      - duodenal ulcer
+      - h pylori
+    severity_rules:
+      red_flags:
+        - perforation
+        - bleeding
+    procedures:
+      - ppi therapy
+      - h pylori eradication
+    recovery_recos:
+      - avoid nsaids
+      - small frequent meals
+    treatment_span: "Recovery 2–6 weeks"
+    diet_plan:
+      - "Avoid spicy food"
+    lifestyle_plan:
+      - "Stress control"
+    post_surgery_plan:
+      - "Follow-up endoscopy if severe"
+    cost_inr: [8000, 60000]
+
+  # ==========================================================
+  # 83) GERD (Severe)
+  # ==========================================================
+  - name: GERD (Severe)
+    keywords:
+      - gerd
+      - reflux
+      - acidity
+      - heartburn
+    severity_rules:
+      red_flags:
+        - vomiting blood
+        - severe weight loss
+    procedures:
+      - lifestyle modification
+      - ppi therapy
+    recovery_recos:
+      - sleep on left side
+      - small meals
+    treatment_span: "Recovery 1–3 weeks"
+    diet_plan:
+      - "Avoid citrus and oily food"
+    lifestyle_plan:
+      - "Avoid late-night meals"
+    post_surgery_plan:
+      - "N/A"
+    cost_inr: [5000, 20000]
+
+  # ==========================================================
+  # 84) Kidney Stones (Duplicate - Severe Variant)
+  # ==========================================================
+  - name: Kidney Stones (Severe)
+    keywords:
+      - kidney stone
+      - renal calculus
+      - flank pain
+      - ureteric stone severe
+    severity_rules:
+      red_flags:
+        - infection
+        - hydronephrosis
+    procedures:
+      - analgesics
+      - lithotripsy
+      - ureteroscopy
+    recovery_recos:
+      - drink 3 L/day
+    treatment_span: "Stone passage 1–4 weeks | Surgery recovery 1–3 weeks"
+    diet_plan:
+      - "Reduce oxalate foods"
+      - "Hydration"
+    lifestyle_plan:
+      - "Daily walking"
+    post_surgery_plan:
+      - "Strain urine & follow-up"
+    cost_inr: [20000, 200000]
+
+  # ==========================================================
+  # 85) Severe UTI
+  # ==========================================================
+  - name: Severe UTI
+    keywords:
+      - uti
+      - urinary infection
+      - burning urination
+      - lower abdominal pain
+    severity_rules:
+      red_flags:
+        - fever with chills
+        - flank pain
+    procedures:
+      - antibiotics
+      - hydration
+    recovery_recos:
+      - water intake
+    treatment_span: "Recovery 3–7 days"
+    diet_plan:
+      - "Cranberry juice (optional)"
+    lifestyle_plan:
+      - "Avoid holding urine"
+    post_surgery_plan:
+      - "N/A"
+    cost_inr: [2000, 20000]
+
+  # ==========================================================
+  # 86) Kidney Infection (Pyelonephritis Severe)
+  # ==========================================================
+  - name: Pyelonephritis (Severe)
+    keywords:
+      - pyelonephritis severe
+      - fever chills
+      - uti severe
+      - flank pain
+    severity_rules:
+      red_flags:
+        - sepsis
+    procedures:
+      - antibiotics
+      - fluids
+    recovery_recos:
+      - hydration
+    treatment_span: "Recovery 5–14 days"
+    diet_plan:
+      - "Light food"
+    lifestyle_plan:
+      - "Avoid dehydration"
+    post_surgery_plan:
+      - "N/A"
+    cost_inr: [20000, 120000]
+
+  # ==========================================================
+  # 87) Acute Liver Disease
+  # ==========================================================
+  - name: Acute Liver Disease
+    keywords:
+      - liver enlarged
+      - jaundice
+      - hepatitis
+      - elevated liver enzymes
+    severity_rules:
+      red_flags:
+        - hepatic failure
+        - coagulopathy
+    procedures:
+      - monitoring
+      - antivirals if needed
+    recovery_recos:
+      - avoid alcohol
+    treatment_span: "Recovery 2–10 weeks"
+    diet_plan:
+      - "Low-fat diet"
+    lifestyle_plan:
+      - "Avoid alcohol completely"
+    post_surgery_plan:
+      - "N/A"
+    cost_inr: [30000, 200000]
+
+  # ==========================================================
+  # 88) Fatty Liver (Moderate to Severe)
+  # ==========================================================
+  - name: Fatty Liver
+    keywords:
+      - fatty liver
+      - grade 2 fatty liver
+      - hepatic steatosis
+    severity_rules:
+      red_flags:
+        - elevated liver enzymes
+        - fibrosis
+    procedures:
+      - lifestyle modification
+      - medications
+    recovery_recos:
+      - weight reduction
+    treatment_span: "Recovery 8–20 weeks"
+    diet_plan:
+      - "Low-carb diet"
+    lifestyle_plan:
+      - "Daily exercise"
+    post_surgery_plan:
+      - "N/A"
+    cost_inr: [10000, 80000]
+
+  # ==========================================================
+  # 89) Jaundice (Non-Surgical)
+  # ==========================================================
+  - name: Jaundice
+    keywords:
+      - jaundice
+      - yellow eyes
+      - bilirubin high
+    severity_rules:
+      red_flags:
+        - very high bilirubin
+        - hepatic failure
+    procedures:
+      - liver evaluation
+      - hydration
+    recovery_recos:
+      - avoid alcohol
+    treatment_span: "Recovery 2–6 weeks"
+    diet_plan:
+      - "Low-fat diet"
+    lifestyle_plan:
+      - "Avoid alcohol"
+    post_surgery_plan:
+      - "Follow LFT every week"
+    cost_inr: [5000, 60000]
+
+  # ==========================================================
+  # 90) Decompensated Liver Disease
+  # ==========================================================
+  - name: Decompensated Liver Disease
+    keywords:
+      - ascites
+      - liver failure
+      - variceal bleed
+      - cirrhosis
+    severity_rules:
+      red_flags:
+        - hepatic encephalopathy
+        - massive ascites
+    procedures:
+      - diuretics
+      - paracentesis
+      - icu care if severe
+    recovery_recos:
+      - strict salt restriction
+      - avoid alcohol
+    treatment_span: "Chronic condition | Crisis recovery 2–8 weeks"
+    diet_plan:
+      - "High-protein diet"
+    lifestyle_plan:
+      - "Avoid alcohol permanently"
+    post_surgery_plan:
+      - "Regular gastro review"
+    cost_inr: [70000, 500000]
+# ---------------------------------------------------------------------
+# HOSPITAL RATINGS + DEPARTMENTS + DOCTORS
+# ---------------------------------------------------------------------
+
+hospital_ratings:
+  bangalore:
+    - name: Manipal Hospital – Old Airport Road
+      rating: 4.7
+      cost_factor: 1.30        # Expensive but high-quality
+      specialties:
+        - General Surgery
+        - Gastroenterology
+        - Cardiology
+        - Neurology
+      departments:
+        General Surgery:
+          rating: 4.8
+          doctors:
+            - name: Dr. Karthik R
+              experience: 15
+              rating: 4.9
+        Gastroenterology:
+          rating: 4.7
+          doctors:
+            - name: Dr. Surya V
+              experience: 12
+              rating: 4.8
+        Cardiology:
+          rating: 4.6
+          doctors:
+            - name: Dr. Vishal A
+              experience: 20
+              rating: 4.8
+        Neurology:
+          rating: 4.5
+          doctors:
+            - name: Dr. Anita S
+              experience: 10
+              rating: 4.7
+
+    - name: Aster CMI Hospital
+      rating: 4.6
+      cost_factor: 1.20        # Slightly premium
+      specialties:
+        - General Surgery
+        - Emergency Medicine
+        - Pulmonology
+      departments:
+        General Surgery:
+          rating: 4.5
+          doctors:
+            - name: Dr. Rajesh K
+              experience: 18
+              rating: 4.6
+        Emergency Medicine:
+          rating: 4.4
+          doctors:
+            - name: Dr. Manoj T
+              experience: 14
+              rating: 4.5
+        Pulmonology:
+          rating: 4.6
+          doctors:
+            - name: Dr. Kavya L
+              experience: 9
+              rating: 4.7
+
+    - name: Fortis Bannerghatta
+      rating: 4.5
+      cost_factor: 1.10        # Balanced cost
+      specialties:
+        - Gastroenterology
+        - Cardiology
+        - General Surgery
+      departments:
+        Gastroenterology:
+          rating: 4.4
+          doctors:
+            - name: Dr. Arun Prasad
+              experience: 22
+              rating: 4.6
+        Cardiology:
+          rating: 4.6
+          doctors:
+            - name: Dr. Ahuja
+              experience: 17
+              rating: 4.7
+        General Surgery:
+          rating: 4.4
+          doctors:
+            - name: Dr. Prakash M
+              experience: 11
+              rating: 4.3
+
+    - name: Columbia Asia Yeshwanthpur
+      rating: 4.3
+      cost_factor: 1.00        # Moderately priced
+      specialties:
+        - General Surgery
+        - Internal Medicine
+        - Neurology
+      departments:
+        General Surgery:
+          rating: 4.2
+          doctors:
+            - name: Dr. Neeraj S
+              experience: 13
+              rating: 4.3
+        Internal Medicine:
+          rating: 4.1
+          doctors:
+            - name: Dr. Priya N
+              experience: 9
+              rating: 4.2
+        Neurology:
+          rating: 4.0
+          doctors:
+            - name: Dr. Shweta R
+              experience: 10
+              rating: 4.1
+
+    - name: Sakra World Hospital
+      rating: 4.4
+      cost_factor: 1.15       # Upper-mid range
+      specialties:
+        - Gastroenterology
+        - Pulmonology
+        - Orthopedics
+      departments:
+        Gastroenterology:
+          rating: 4.3
+          doctors:
+            - name: Dr. Naveen S
+              experience: 13
+              rating: 4.5
+        Pulmonology:
+          rating: 4.4
+          doctors:
+            - name: Dr. Arjun H
+              experience: 10
+              rating: 4.4
+        Orthopedics:
+          rating: 4.2
+          doctors:
+            - name: Dr. Rakesh V
+              experience: 12
+              rating: 4.3
+# ---------------------------------------------------------------------
+# ENTERPRISE METADATA FOR BACKEND/API
+# ---------------------------------------------------------------------
+
+metadata:
+  version: "3.0"
+  last_updated: "2025-01-12"
+  author: "Clinical Intelligence Engine"
+  license: "Internal Use Only"
+  system: "Clinical AI Decision Support"
+  description: "Enterprise-grade rule engine for diagnosis → department → hospital → cost → doctor mapping"
+
+# ---------------------------------------------------------------------
+# DISEASE → DEPARTMENT MAPPING (MASTER LIST)
+# ---------------------------------------------------------------------
+
+department_map:
+
+  # General Surgery
+  general_surgery:
+    - appendicitis
+    - cholecystitis
+    - gallstones
+    - intestinal obstruction
+    - hernia
+    - umbilical hernia
+    - femoral hernia
+    - perforation
+    - peritonitis
+    - acute abdomen
+
+  # Gastroenterology
+  gastroenterology:
+    - pancreatitis
+    - gastritis
+    - ulcer
+    - bleeding ulcer
+    - hepatitis
+    - liver disease
+    - fatty liver
+    - jaundice
+
+  # Cardiology
+  cardiology:
+    - chest pain
+    - cad
+    - coronary artery disease
+    - myocardial infarction
+    - heart failure
+    - unstable angina
+    - arrhythmia
+    - atrial fibrillation
+    - hypertension
+    - hypertensive emergency
+
+  # Pulmonology
+  pulmonology:
+    - pneumonia
+    - copd
+    - asthma
+    - respiratory distress
+    - pleural effusion
+    - pulmonary embolism
+    - ards
+
+  # Neurology
+  neurology:
+    - stroke
+    - cva
+    - seizure
+    - epilepsy
+    - migraine
+    - vertigo
+    - multiple sclerosis
+    - parkinson
+    - encephalitis
+    - meningitis
+
+  # Orthopedics
+  orthopedics:
+    - osteoarthritis
+    - knee pain
+    - fracture
+    - disc herniation
+    - cervical spondylosis
+
+  # Urology
+  urology:
+    - kidney stone
+    - renal calculi
+    - hydronephrosis
+    - pyelonephritis
+    - bph
+    - prostatitis
+
+  # Gynecology
+  gynecology:
+    - ovarian cyst
+    - pcos
+    - endometriosis
+    - pid
+    - fibroid
+
+  # Infectious Diseases
+  infectious:
+    - dengue
+    - malaria
+    - chikungunya
+    - typhoid
+    - gastroenteritis
+    - leptospirosis
+    - food poisoning
+
+# ---------------------------------------------------------------------
+# VALIDATION RULES (ENTERPRISE-GRADE)
+# ---------------------------------------------------------------------
+
+validators:
+  patient:
+    name:
+      regex: "^[A-Za-z .'-]{2,80}$"
+      required: true
+    age:
+      min: 0
+      max: 120
+      required: true
+    sex:
+      allowed: ["male", "female", "other"]
+
+  appointment:
+    time_slots:
+      start: "08:00"
+      end: "20:00"
+    duration_minutes: 20
+    allow_same_day: true
+
+  hospital:
+    min_rating: 3.5
+    max_cost_factor: 1.50
+
+# ---------------------------------------------------------------------
+# HOSPITAL SELECTION ENGINE RULES
+# ---------------------------------------------------------------------
+
+selection_rules:
+
+  choose_best_hospital:
+    logic:
+      - must_support_department: true
+      - prioritize_high_rating: true
+      - prioritize_experienced_doctors: true
+      - consider_cost_factor: true
+    weightage:
+      rating: 0.50
+      doctor_experience: 0.25
+      cost: 0.25
+
+  choose_cost_efficient:
+    logic:
+      - must_support_department: true
+      - choose_low_cost_factor: true
+      - avoid_premium_hospitals: true
+    weightage:
+      cost: 0.70
+      rating: 0.20
+      doctor_experience: 0.10
+
+  choose_fast_availability:
+    logic:
+      - prioritize_open_slots: true
+      - allow_same_day: true
+      - flexible_department_doctors: true
+    weightage:
+      availability: 0.60
+      rating: 0.20
+      cost: 0.20
+
+# ---------------------------------------------------------------------
+# DOCTOR RECOMMENDATION RULES
+# ---------------------------------------------------------------------
+
+doctor_rules:
+
+  preferred_doctor:
+    logic:
+      - highest_rating
+      - years_of_experience
+      - specialization_match
+      - hospital_reputation
+
+  backup_doctor:
+    logic:
+      - next_best_rating
+      - minimum_experience >= 5
+
+# ---------------------------------------------------------------------
+# CUSTOM COST ENGINE RULES
+# ---------------------------------------------------------------------
+
+cost_engine:
+  include:
+    - base_cost
+    - city_modifier
+    - hospital_cost_factor
+    - doctor_experience_weight
+    - rating_weight
+  additional_fees:
+    registration_fee: 200
+    consultation_fee: 600
+    emergency_fee: 2000
+  tax_rate_percent: 5
+
+# final_cost calculation:
+# final_cost = 
+#     (base_cost * city_modifier * hospital_cost_factor *
+#     (1 + doctor_experience * experience_weight) *
+#     (1 + hospital_rating * rating_weight))
+#     + registration + consultation + tax
+# ---------------------------------------------------------------------
+# PART 10 — AI REASONING ENGINE + API BLUEPRINT + TEST CASES
+# ---------------------------------------------------------------------
+
+# ---------------------------------------------------------------------
+# AI REASONING ENGINE (DECISION LAYERS)
+# ---------------------------------------------------------------------
+ai_engine:
+
+  layers:
+
+    # STEP 1 — Identify condition from keywords
+    detect_condition:
+      strategy: "keyword_match + weighted_similarity"
+      includes:
+        - keyword_count
+        - match_strength
+        - severity_terms
+        - red_flag_hits
+
+    # STEP 2 — Predict the department
+    predict_department:
+      strategy: "lookup + fallback_matching"
+      logic:
+        - "check department_map for match"
+        - "if multiple depts → choose one with highest keyword overlap"
+
+    # STEP 3 — Recommend hospital
+    recommend_hospital:
+      strategy: "weighted multi-factor scoring"
+      factors:
+        rating_weight: 0.50
+        cost_weight: 0.25
+        doctor_quality_weight: 0.25
+
+    # STEP 4 — Suggest doctor
+    recommend_doctor:
+      strategy: "experience + rating + specialization"
+      minimum_experience: 5
+      fallback: "next available doctor"
+
+    # STEP 5 — Generate plan for user
+    treatment_summary:
+      include:
+        - condition_name
+        - short_explanation
+        - treatment_span
+        - estimated_cost
+        - top_hospital
+        - doctor
+        - diet_plan
+        - lifestyle_plan
+        - aftercare_plan
+
+    # STEP 6 — Appointment decision logic
+    appointment_rules:
+      follow:
+        - must_confirm_before_booking
+        - payment_optional
+      time_constraints:
+        earliest: "08:00"
+        latest: "20:00"
+        slot_duration: "20 min"
+        allow_same_day: true
+
+
+# ---------------------------------------------------------------------
+# API BLUEPRINT — WHAT BACKEND WILL RETURN
+# ---------------------------------------------------------------------
+
+api_response_template:
+
+  patient:
+    name: ""
+    age: 0
+    sex: ""
+
+  detected_condition:
+    name: ""
+    severity_percent: 0
+    match_keywords: []
+
+  department: ""
+
+  recommended_hospital:
+    name: ""
+    rating: 0.0
+    cost_factor: 1.0
+    email: ""
+
+  recommended_doctor:
+    name: ""
+    experience_years: 0
+    specialization: ""
+
+  estimated_cost:
+    low: 0
+    high: 0
+
+  treatment_plan:
+    procedures: []
+    treatment_span: ""
+    diet_plan: []
+    lifestyle_plan: []
+    post_surgery_plan: []
+
+  appointment:
+    date: ""
+    time: ""
+    confirmation_required: true
+
+  status: "success"
+  message: "Generated by Clinical AI Engine"
+
+
+# ---------------------------------------------------------------------
+# SAMPLE API CALLS (TEST CASES)
+# ---------------------------------------------------------------------
+
+test_cases:
+
+  - id: TC001
+    description: "Appendicitis detection and treatment"
+    input_text: "Findings: inflamed appendix with RLQ pain"
+    expected_output:
+      condition: "Appendicitis"
+      department: "general_surgery"
+      recommended_hospital_rating_min: 4.3
+
+  - id: TC002
+    description: "Gallbladder stone detection"
+    input_text: "Gallstones with biliary colic"
+    expected_output:
+      condition: "Cholecystitis / Gallstones"
+      department: "gastroenterology"
+
+  - id: TC003
+    description: "Heart Attack (MI) detection"
+    input_text: "STEMI with severe chest pain and sweating"
+    expected_output:
+      condition: "Myocardial Infarction"
+      department: "cardiology"
+      red_flag_present: true
+
+  - id: TC004
+    description: "Kidney Stone detection"
+    input_text: "Flank pain with ureteric calculus"
+    expected_output:
+      condition: "Kidney Stones"
+      department: "urology"
+
+  - id: TC005
+    description: "Stroke detection"
+    input_text: "Slurred speech, facial droop, weakness"
+    expected_output:
+      condition: "Stroke (CVA)"
+      department: "neurology"
+
+
+# ---------------------------------------------------------------------
+# FUTURE EXPANSION (ENTERPRISE SCALABILITY PLANS)
+# ---------------------------------------------------------------------
+
+future_extensions:
+
+  - name: "Insurance Integration"
+    description: "Map treatment cost to insurance coverage percentages"
+
+  - name: "Real-time Doctor Availability"
+    description: "Fetch doctor timing via API and block slots live"
+
+  - name: "Ambulance & Emergency Routing"
+    description: "Integrate with nearest ambulance API"
+
+  - name: "Lab Test Recommendation Engine"
+    description: "Suggest tests based on detected condition"
+
+  - name: "Drug Interaction Checker"
+    description: "Warn user about medication conflicts"
+
+  - name: "AI Severity Refinement Model"
+    description: "Use NLP ML model for 0–100 severity scoring"
+
+  - name: "Multi-City Expansion"
+    description: "Add Mumbai, Delhi, Hyderabad, Chennai, Pune"
+
+  - name: "Doctor Chat Routing"
+    description: "Route patient to on-call teleconsultation"
+
+
+# ==========================================================
+# END OF rules.yaml (PART 10 / 10)
+# ==========================================================
